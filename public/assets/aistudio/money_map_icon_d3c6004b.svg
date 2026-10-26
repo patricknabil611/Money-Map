@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Money Map app icon</title><desc id="desc">A navy and blue map-navigation app icon with a golden dollar pin, travel landmarks, route, and Money Map lettering.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07316f"/><stop offset=".48" stop-color="#0879cf"/><stop offset="1" stop-color="#00173d"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#0878c9"/><stop offset="1" stop-color="#00183f"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2=".85" y2="1"><stop stop-color="#fff17a"/><stop offset=".42" stop-color="#ffc928"/><stop offset="1" stop-color="#f58a00"/></linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#eaf7ff"/><stop offset="1" stop-color="#f8dca7"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#ffe98a" stop-opacity=".9"/><stop offset="1" stop-color="#ffe98a" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur in="SourceAlpha" stdDeviation="12"/><feOffset dy="12"/><feComponentTransfer><feFuncA type="linear" slope=".38"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <clipPath id="round"><rect x="70" y="56" width="884" height="912" rx="190"/></clipPath>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <rect x="70" y="56" width="884" height="912" rx="190" fill="url(#panel)" stroke="#1d8be1" stroke-width="3"/>
+    <circle cx="512" cy="402" r="330" fill="url(#glow)"/>
+    <path d="M70 475 Q240 410 390 455 T700 445 T954 470 L954 690 L70 690Z" fill="#06366f" opacity=".72"/>
+    <!-- travel skyline -->
+    <g fill="#063879" stroke="#063879" stroke-linejoin="round">
+      <path d="M112 472h35v-55h13v-26l8-19 8 19v26h13v55h22v-78h18v-25l8-17 8 17v25h14v78h25v-46h17v-38l9-17 9 17v38h15v46z"/>
+      <!-- Eiffel-inspired tower -->
+      <path d="M270 477 L300 361 L314 278 L319 250 L324 278 L338 361 L368 477 L344 477 L331 426 L307 426 L294 477Z"/>
+      <path d="M301 361h36M294 400h50M307 426h24" fill="none" stroke="#0a5ba6" stroke-width="7"/>
+      <!-- domed tower -->
+      <path d="M376 477V365Q395 337 414 365V477Z"/><path d="M383 365Q395 330 407 365Z" fill="#0a5ba6"/>
+      <!-- Brandenburg Gate inspired -->
+      <path d="M618 477V394h15v-19h112v19h15v83h-18v-65h-16v65h-17v-65h-17v65h-17v-65h-17v65h-17v-65h-16v65Z"/>
+      <path d="M626 375l8-14 8 14m13 0 8-14 8 14m13 0 8-14 8 14m13 0 8-14 8 14"/>
+      <!-- TV tower -->
+      <path d="M824 477L842 312l-6-13 9-15 9 15-6 13 18 165Z"/><circle cx="845" cy="352" r="19"/>
+      <!-- windmill -->
+      <path d="M884 477l9-53h36l9 53Z"/><path d="M911 425v-55m0 55-42-27m42 27 40-29m-40 29 2 46" fill="none" stroke="#063879" stroke-width="10"/>
+      <!-- palms -->
+      <path d="M173 477l8-64 8 64Z"/><path d="M181 414q-29-30-44-6 25-4 43 13-33-3-35 17 20-14 39-10-18 17-7 27 10-21 16-25 14 22 28 14-9-20-24-25 24 0 31-19-23 4-42 19 10-25 1-36-13 13-14 31Z"/>
+      <path d="M220 477l7-45 7 45Z"/><path d="M227 433q-20-24-31-5 17-3 30 10-22-2-24 13 15-10 27-7-12 12-4 20 7-15 12-18 10 15 20 9-7-14-18-18 17 0 22-14-16 3-29 14 7-18 0-26-9 9-10 22Z"/>
+    </g>
+    <!-- folded map -->
+    <path d="M150 700L238 492L430 456L600 492L786 463L894 694L726 681L552 737L356 690Z" fill="url(#paper)" filter="url(#shadow)"/>
+    <path d="M164 685L249 507L421 477L405 682L356 676Z" fill="#168bdc"/>
+    <path d="M249 507L421 477L601 509L616 697L405 682Z" fill="#0871bd"/>
+    <path d="M421 477L601 509L786 483L876 681L726 665L616 697Z" fill="#1396e6"/>
+    <path d="M421 477L405 682M601 509L616 697M249 507L421 477M616 697L726 665" fill="none" stroke="#8bd5ff" stroke-opacity=".45" stroke-width="3"/>
+    <!-- simplified continents -->
+    <g fill="#064b91" opacity=".88">
+      <path d="M290 548l32-24 31 9 20 26-17 18-3 24-20 11-10 31-21 3-14-28-22-17 3-28-13-13Z"/>
+      <path d="M372 620l25-17 25 11 11 32-12 23-5 33-18 18-11-29-16-20 4-25Z"/>
+      <path d="M434 531l27-18 39 5 24 20-9 16-24-4-16 20-26-5-12-17-19-2Z"/>
+      <path d="M476 574l33-18 31 14 18 25-12 23-20 14-11 38-22 8-13-33-21-18 5-28Z"/>
+      <path d="M536 533l40-15 34 13 20 27-17 15-26-8-12 18-20-10-16-20Z"/>
+      <path d="M615 583l22-10 24 17 15 25-18 16-21-8-13-17Z"/>
+      <path d="M680 610l32-11 30 18 22 26-11 15-26-13-18 5-19-17Z"/>
+    </g>
+    <!-- route -->
+    <path d="M490 694C520 668 575 658 552 631S452 610 475 579 552 548 522 523" fill="none" stroke="#f8a900" stroke-width="18" stroke-linecap="round"/>
+    <path d="M490 694C520 668 575 658 552 631S452 610 475 579 552 548 522 523" fill="none" stroke="#ffe45b" stroke-width="8" stroke-linecap="round"/>
+    <g fill="url(#gold)" stroke="#fff2a0" stroke-width="3"><circle cx="490" cy="694" r="15"/><circle cx="552" cy="631" r="15"/><circle cx="475" cy="579" r="13"/></g>
+    <!-- main money pin -->
+    <g filter="url(#shadow)">
+      <path d="M512 160C447 160 395 211 395 275c0 83 117 193 117 193S629 358 629 275c0-64-52-115-117-115Z" fill="url(#gold)" stroke="#ffdb4a" stroke-width="5"/>
+      <circle cx="512" cy="272" r="77" fill="#06346f" stroke="#ffba21" stroke-width="7"/>
+      <text x="512" y="301" font-family="Arial, Helvetica, sans-serif" font-size="106" font-weight="700" text-anchor="middle" fill="#fffdf3">$</text>
+    </g>
+    <!-- airplane and contrail -->
+    <path d="M635 237Q690 214 737 196" fill="none" stroke="#c8f1ff" stroke-width="4"/>
+    <g transform="translate(744 190) rotate(-19)" fill="#f7fbff"><path d="M-44 1L-8-5 17-32 28-30 16-4 48 0Q56 2 48 7L15 8 3 31-7 31-3 8-44 6Z"/></g>
+    <!-- title -->
+    <text x="512" y="842" font-family="Arial, Helvetica, sans-serif" font-size="91" font-weight="800" text-anchor="middle" letter-spacing="-3"><tspan fill="#fffaf0">Money </tspan><tspan fill="#ffd12e">Map</tspan></text>
+    <path d="M230 878H794" stroke="#4b8bc3" stroke-width="2" opacity=".45"/>
+  </g>
+</svg>
