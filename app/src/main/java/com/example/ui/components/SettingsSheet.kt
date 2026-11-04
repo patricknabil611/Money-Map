@@ -71,9 +71,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.google.firebase.auth.FirebaseUser
+import androidx.compose.material.icons.filled.Logout
+import coil.compose.AsyncImage
 import com.example.data.model.AppSettings
-import com.example.data.user.ProfileAvatarView
-import com.example.data.user.UserProfile
 import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ScheduleEngine
@@ -88,7 +89,7 @@ import java.util.Locale
 @Composable
 fun SettingsSheet(
   settings: AppSettings,
-  currentProfile: UserProfile? = null,
+  currentUser: FirebaseUser? = null,
   onDismiss: () -> Unit,
   onUpdateRange: (String, String) -> Unit,
   onUpdateTheme: (String) -> Unit = {},
@@ -100,7 +101,7 @@ fun SettingsSheet(
   onToggleAutoSync: (Boolean) -> Unit = {},
   onSyncNow: () -> Unit = {},
   onLockApp: () -> Unit = {},
-  onManageUsers: () -> Unit = {},
+  onSignOut: () -> Unit = {},
   onOpenNotificationSetup: () -> Unit = {}
 ) {
   val context = LocalContext.current
@@ -113,6 +114,7 @@ fun SettingsSheet(
   var errorMsg by remember { mutableStateOf<String?>(null) }
   var infoMsg by remember { mutableStateOf<String?>(null) }
   var resetArmed by remember { mutableStateOf(false) }
+  var showSignOutConfirm by remember { mutableStateOf(false) }
 
   LaunchedEffect(resetArmed) {
     if (resetArmed) {
@@ -271,7 +273,7 @@ fun SettingsSheet(
           }
         }
 
-        // Section 1: Netflix-Style Profile & User Management
+        // Section 1: Google Account & Cloud Identity
         Card(
           shape = AppShapes.Card,
           colors = CardDefaults.cardColors(containerColor = colors.surface2),
@@ -288,70 +290,68 @@ fun SettingsSheet(
               horizontalArrangement = Arrangement.SpaceBetween
             ) {
               Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                ProfileAvatarView(
-                  avatarKey = currentProfile?.avatarKey,
-                  modifier = Modifier.size(46.dp),
-                  shape = AppShapes.Medium
-                )
+                if (currentUser?.photoUrl != null) {
+                  AsyncImage(
+                    model = currentUser.photoUrl,
+                    contentDescription = "User Photo",
+                    modifier = Modifier
+                      .size(46.dp)
+                      .clip(CircleShape)
+                  )
+                } else {
+                  Box(
+                    modifier = Modifier
+                      .size(46.dp)
+                      .clip(CircleShape)
+                      .background(colors.head),
+                    contentAlignment = Alignment.Center
+                  ) {
+                    Text(
+                      text = (currentUser?.displayName?.firstOrNull() ?: currentUser?.email?.firstOrNull() ?: 'U').uppercase(),
+                      color = colors.headInk,
+                      fontWeight = FontWeight.Bold,
+                      fontSize = 20.sp
+                    )
+                  }
+                }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                  Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                      text = currentProfile?.name ?: "Patrick",
-                      fontWeight = FontWeight.Bold,
-                      color = colors.ink,
-                      fontSize = 16.sp,
-                      maxLines = 1,
-                      overflow = TextOverflow.Ellipsis
-                    )
-                    if (currentProfile?.isPatrick == true) {
-                      Spacer(modifier = Modifier.width(6.dp))
-                      Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Password protected",
-                        tint = colors.year,
-                        modifier = Modifier.size(14.dp)
-                      )
-                    }
-                  }
                   Text(
-                    text = if (currentProfile?.isPatrick == true) "Locked to S25 Ultra (R5CY14B6HZD)" else "Active Profile",
-                    color = if (currentProfile?.isPatrick == true) colors.income else colors.muted,
+                    text = currentUser?.displayName ?: "Google User",
+                    fontWeight = FontWeight.Bold,
+                    color = colors.ink,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                  )
+                  Text(
+                    text = currentUser?.email ?: "",
+                    color = colors.muted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                  )
+                  Text(
+                    text = "Synced with Google Account",
+                    color = colors.income,
                     fontSize = 11.5.sp,
-                    fontWeight = if (currentProfile?.isPatrick == true) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                   )
                 }
-              }
-
-              Box(
-                modifier = Modifier
-                  .clip(AppShapes.Small)
-                  .background(colors.surface)
-                  .clickable {
-                    onDismiss()
-                    onManageUsers()
-                  }
-                  .padding(horizontal = 8.dp, vertical = 6.dp)
-              ) {
-                Text(
-                  text = "Switch Profile",
-                  fontSize = 11.5.sp,
-                  fontWeight = FontWeight.Bold,
-                  color = colors.head
-                )
               }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
             AppSecondaryButton(
-              text = "Switch & Manage Profiles (Netflix Avatars)",
-              icon = Icons.Default.Person,
+              text = "Sign Out",
+              icon = Icons.Default.Logout,
+              contentColor = colors.expense,
+              borderColor = colors.expense.copy(alpha = 0.5f),
               onClick = {
-                onDismiss()
-                onManageUsers()
+                showSignOutConfirm = true
               },
               modifier = Modifier
                 .fillMaxWidth()
@@ -361,14 +361,8 @@ fun SettingsSheet(
         }
 
         // Section 2: Google Drive Continuous Auto-Sync & Backup
-        val syncAccount = if (!currentProfile?.email.isNullOrBlank()) {
-          currentProfile!!.email
-        } else if (currentProfile?.isPatrick == true) {
-          com.example.data.user.UserManager.PATRICK_EMAIL
-        } else {
-          settings.driveAccount
-        }
-        val isAutoSyncOn = currentProfile?.autoSyncEnabled ?: true
+        val syncAccount = currentUser?.email?.ifBlank { settings.driveAccount } ?: settings.driveAccount
+        val isAutoSyncOn = true
 
         Card(
           shape = AppShapes.Card,
@@ -713,7 +707,7 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             AppSecondaryButton(
-              text = if (resetArmed) "Tap again to confirm reset" else "Reset to Patrick's initial budget",
+              text = if (resetArmed) "Tap again to confirm clearing all data" else "Clear all budget data",
               icon = Icons.Default.RestartAlt,
               containerColor = if (resetArmed) colors.expense else Color.Transparent,
               contentColor = if (resetArmed) Color.White else colors.expense,
@@ -721,7 +715,7 @@ fun SettingsSheet(
               onClick = {
                 if (resetArmed) {
                   onResetDefault()
-                  infoMsg = "Data reset to initial state."
+                  infoMsg = "Cleared all budget data."
                 } else {
                   resetArmed = true
                 }
@@ -865,7 +859,7 @@ fun SettingsSheet(
               Divider(color = colors.line, modifier = Modifier.padding(vertical = 6.dp))
               AboutMetadataRow(icon = Icons.Default.SdStorage, iconColor = colors.leftover, label = "App Package Size", value = "33.2 MB")
               Divider(color = colors.line, modifier = Modifier.padding(vertical = 6.dp))
-              AboutMetadataRow(icon = Icons.Default.PhoneAndroid, iconColor = colors.head, label = "Secured Hardware", value = "Samsung Galaxy S25 Ultra (R5CY14B6HZD)")
+              AboutMetadataRow(icon = Icons.Default.PhoneAndroid, iconColor = colors.head, label = "Platform", value = "Android (Material 3)")
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -917,8 +911,8 @@ fun SettingsSheet(
             FeatureHighlightCard(
               icon = Icons.Default.Fingerprint,
               iconColor = Color(0xFF8B5CF6),
-              title = "Hardware Biometric Fingerprint Lock",
-              description = "Patrick's profile strictly bound to your Galaxy S25 Ultra (R5CY14B6HZD).",
+              title = "Biometric Fingerprint Lock",
+              description = "Fingerprint security protecting your financial planner across sessions.",
               colors = colors
             )
 
@@ -942,6 +936,38 @@ fun SettingsSheet(
         }
       }
     }
+  }
+
+  if (showSignOutConfirm) {
+    androidx.compose.material3.AlertDialog(
+      onDismissRequest = { showSignOutConfirm = false },
+      title = { Text("Sign Out", fontWeight = FontWeight.Bold, color = colors.ink) },
+      text = {
+        Text(
+          "Are you sure you want to sign out? Your budget data remains safely saved in your Google account in the cloud.",
+          color = colors.ink
+        )
+      },
+      confirmButton = {
+        AppPrimaryButton(
+          text = "Sign Out",
+          containerColor = colors.expense,
+          contentColor = Color.White,
+          onClick = {
+            showSignOutConfirm = false
+            onDismiss()
+            onSignOut()
+          }
+        )
+      },
+      dismissButton = {
+        AppSecondaryButton(
+          text = "Cancel",
+          onClick = { showSignOutConfirm = false }
+        )
+      },
+      containerColor = colors.surface
+    )
   }
 }
 

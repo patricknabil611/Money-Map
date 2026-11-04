@@ -1,8 +1,8 @@
 package com.example.data.drive
 
 import android.content.Context
-import com.example.data.user.UserManager
-import com.example.data.user.UserProfile
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,8 +25,7 @@ sealed class SyncState {
 }
 
 /**
- * Handles continuous background auto-sync and manual Google Drive synchronization
- * for user profiles, keeping financial data continuously backed up and protected across devices.
+ * Handles continuous background auto-sync and Google Drive cloud backup for the signed-in user.
  */
 object GoogleDriveSyncManager {
 
@@ -39,9 +38,6 @@ object GoogleDriveSyncManager {
   private val _lastSyncTimestamp = MutableStateFlow<Long>(0L)
   val lastSyncTimestamp: StateFlow<Long> = _lastSyncTimestamp.asStateFlow()
 
-  /**
-   * Returns formatted human-readable string for the sync status.
-   */
   fun formatLastSync(timestamp: Long): String {
     if (timestamp <= 0L) return "Not synced yet"
     val diffMs = System.currentTimeMillis() - timestamp
@@ -55,32 +51,29 @@ object GoogleDriveSyncManager {
     }
   }
 
-  /**
-   * Called whenever user modifies their budget. Automatically debounces and syncs to Google Drive.
-   */
   fun scheduleContinuousAutoSync(
     context: Context,
-    profile: UserProfile,
+    userEmail: String,
+    userId: String,
     jsonSupplier: suspend () -> String
   ) {
-    if (!profile.autoSyncEnabled) return
-
     debounceJob?.cancel()
     debounceJob = scope.launch {
       delay(1200) // 1.2s debounce
-      performSync(context, profile, jsonSupplier())
+      performSync(context, userEmail, userId, jsonSupplier())
     }
   }
 
   suspend fun manualSyncNow(
     context: Context,
-    profile: UserProfile,
+    userEmail: String,
+    userId: String,
     jsonSupplier: suspend () -> String
   ): Result<String> = withContext(Dispatchers.IO) {
     try {
       _syncState.value = SyncState.Syncing
       val json = jsonSupplier()
-      performSync(context, profile, json)
+      performSync(context, userEmail, userId, json)
     } catch (e: Exception) {
       val err = "Sync failed: ${e.message}"
       _syncState.value = SyncState.Error(err)
@@ -90,24 +83,20 @@ object GoogleDriveSyncManager {
 
   private suspend fun performSync(
     context: Context,
-    profile: UserProfile,
+    userEmail: String,
+    userId: String,
     jsonContent: String
   ): Result<String> = withContext(Dispatchers.IO) {
     try {
       _syncState.value = SyncState.Syncing
 
-      // 1. Persist local sync snapshot dedicated for this profile's cloud replica
-      val syncFile = File(context.filesDir, "google_drive_sync_${profile.id}.json")
+      val syncFile = File(context.filesDir, "google_drive_sync_${userId}.json")
       syncFile.writeText(jsonContent)
 
-      // 2. Also keep user snapshot in UserManager
-      UserManager.saveUserSnapshot(context, profile.id, jsonContent)
-
       val now = System.currentTimeMillis()
-      UserManager.updateLastSyncTime(context, profile.id, now)
       _lastSyncTimestamp.value = now
 
-      val account = if (profile.email.isNotBlank()) profile.email else if (profile.isPatrick) UserManager.PATRICK_EMAIL else "Google Account"
+      val account = userEmail.ifBlank { Firebase.auth.currentUser?.email ?: "Google Account" }
       _syncState.value = SyncState.Synced(now, account)
 
       Result.success("Synced to $account at ${formatLastSync(now)}")
@@ -118,11 +107,11 @@ object GoogleDriveSyncManager {
     }
   }
 
-  fun getLatestCloudBackup(context: Context, profile: UserProfile): String? {
-    val syncFile = File(context.filesDir, "google_drive_sync_${profile.id}.json")
+  fun getLatestCloudBackup(context: Context, userId: String): String? {
+    val syncFile = File(context.filesDir, "google_drive_sync_${userId}.json")
     if (syncFile.exists()) {
       return syncFile.readText()
     }
-    return UserManager.loadUserSnapshot(context, profile.id)
+    return null
   }
 }

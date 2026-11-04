@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
+import com.example.ui.components.AppPrimaryButton
+import com.example.ui.components.AppSecondaryButton
+import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
 import com.example.util.ScheduleEngine
@@ -89,7 +92,7 @@ fun LoansScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
           Text("Total loan balance", color = colors.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
           Spacer(modifier = Modifier.height(1.dp))
           Text(
@@ -101,22 +104,12 @@ fun LoansScreen(
           )
         }
 
-        Button(
+        AppPrimaryButton(
           onClick = onAddLoan,
-          colors = ButtonDefaults.buttonColors(
-            containerColor = colors.head,
-            contentColor = colors.headInk
-          ),
-          shape = RoundedCornerShape(10.dp),
-          modifier = Modifier
-            .height(38.dp)
-            .testTag("add_loan_btn"),
-          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("Add loan", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-        }
+          text = "Add loan",
+          icon = Icons.Default.Add,
+          modifier = Modifier.testTag("add_loan_btn")
+        )
       }
     }
 
@@ -126,7 +119,7 @@ fun LoansScreen(
           modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp),
-          shape = RoundedCornerShape(12.dp),
+          shape = AppShapes.Card,
           colors = CardDefaults.cardColors(containerColor = colors.surface),
           border = CardDefaults.outlinedCardBorder()
         ) {

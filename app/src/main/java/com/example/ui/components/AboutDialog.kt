@@ -182,12 +182,12 @@ fun AboutDialog(
             )
             Divider(color = colors.line, modifier = Modifier.padding(vertical = 8.dp))
 
-            // Target Device Row
+            // Platform Row
             AboutMetadataRow(
               icon = Icons.Default.PhoneAndroid,
               iconColor = colors.head,
-              label = "Secured Hardware",
-              value = "Samsung Galaxy S25 Ultra (R5CY14B6HZD)"
+              label = "Platform",
+              value = "Android (Material 3)"
             )
           }
         }
@@ -260,12 +260,12 @@ fun AboutDialog(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Feature 5: Hardware-Locked Biometric Security
+        // Feature 5: Biometric Security
         FeatureHighlightCard(
           icon = Icons.Default.Fingerprint,
           iconColor = Color(0xFF8B5CF6),
-          title = "Galaxy S25 Ultra Hardware Lock",
-          description = "Biometric fingerprint authentication strictly bound to Patrick's device serial number (R5CY14B6HZD).",
+          title = "Biometric Security",
+          description = "Fingerprint authentication to secure your financial records across sessions.",
           colors = colors
         )
 
@@ -315,17 +315,16 @@ fun AboutDialog(
                 P Money $appVersion
                 Release Date: $releaseDate
                 Package Size: $apkSizeStr
-                Target: Samsung Galaxy S25 Ultra (R5CY14B6HZD)
                 
                 What's New in v2.5.0:
                 • Official rebranding to P Money
+                • Google Sign-In with Firebase Auth cloud synchronization
                 • Samsung Galaxy S25 Ultra orange edge lighting animation on notifications
                 • Customizable weekly update reminder (Every Thursday 1:00 PM)
                 • Dedicated Notification Setup sheet
                 • Real-time multi-device cloud synchronization via Cloud Firestore
-                • Gemini 3.8 Flash AI natural language voice commands (English & Arabic)
                 • Push notifications & automated due date reminders
-                • Hardware-bound biometric fingerprint security
+                • Biometric fingerprint security
                 • Continuous Google Drive automated backups
               """.trimIndent()
               val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

@@ -3,13 +3,12 @@ package com.example.data.sync
 import android.content.Context
 import android.util.Log
 import com.example.R
-import com.example.data.user.UserManager
-import com.example.data.user.UserProfile
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,7 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 
 sealed class RealtimeSyncStatus {
   object Disconnected : RealtimeSyncStatus()
@@ -33,18 +32,77 @@ object FirestoreRealtimeSyncManager {
   private val scope = CoroutineScope(Dispatchers.IO + Job())
   private var liveListener: ListenerRegistration? = null
   private var pushDebounceJob: Job? = null
+  private var lastLocalPushMs = 0L
 
   private val _syncStatus = MutableStateFlow<RealtimeSyncStatus>(RealtimeSyncStatus.Disconnected)
   val syncStatus: StateFlow<RealtimeSyncStatus> = _syncStatus.asStateFlow()
 
-  private fun getFirestore(context: Context): FirebaseFirestore {
+  fun getFirestore(context: Context): FirebaseFirestore {
     val dbId = context.getString(R.string.firestore_database_id)
     return FirebaseFirestore.getInstance(dbId)
   }
 
+  suspend fun isFirestoreBudgetEmpty(context: Context, uid: String): Boolean {
+    return try {
+      val db = getFirestore(context)
+      val snapshot = db.collection("users")
+        .document(uid)
+        .collection("budgets")
+        .get()
+        .await()
+      snapshot.isEmpty
+    } catch (e: Exception) {
+      Log.e(TAG, "Error checking if budget is empty: ${e.message}", e)
+      false
+    }
+  }
+
+  suspend fun isLegacyMigratedInFirestore(context: Context, uid: String): Boolean {
+    return try {
+      val db = getFirestore(context)
+      val userDoc = db.collection("users").document(uid).get().await()
+      userDoc.getBoolean("legacyMigrated") == true
+    } catch (e: Exception) {
+      Log.e(TAG, "Error checking legacyMigrated: ${e.message}", e)
+      false
+    }
+  }
+
+  suspend fun markLegacyMigratedInFirestore(context: Context, uid: String) {
+    try {
+      val db = getFirestore(context)
+      val data = mapOf(
+        "legacyMigrated" to true,
+        "migratedAt" to FieldValue.serverTimestamp()
+      )
+      db.collection("users").document(uid).set(data, SetOptions.merge()).await()
+    } catch (e: Exception) {
+      Log.e(TAG, "Error marking legacyMigrated: ${e.message}", e)
+    }
+  }
+
+  suspend fun fetchRemoteBudget(context: Context, uid: String): String? {
+    return try {
+      val db = getFirestore(context)
+      val doc = db.collection("users")
+        .document(uid)
+        .collection("budgets")
+        .document("live_snapshot")
+        .get()
+        .await()
+      if (doc.exists()) {
+        doc.getString("budgetPayload")
+      } else {
+        null
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Error fetching remote budget: ${e.message}", e)
+      null
+    }
+  }
+
   fun startObservingRemoteChanges(
     context: Context,
-    profile: UserProfile,
     onRemoteDataReceived: (jsonPayload: String) -> Unit
   ) {
     val authUser = Firebase.auth.currentUser
@@ -73,15 +131,14 @@ object FirestoreRealtimeSyncManager {
         if (snapshot != null && snapshot.exists()) {
           val payload = snapshot.getString("budgetPayload")
           val remoteTimestamp = snapshot.getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis()
-          val localLastSync = profile.lastSyncTime
 
           _syncStatus.value = RealtimeSyncStatus.LiveConnected(
             activeDevicesCount = 1,
             lastSyncMs = remoteTimestamp
           )
 
-          if (!payload.isNullOrBlank() && remoteTimestamp > localLastSync) {
-            Log.d(TAG, "Received newer live snapshot from another device")
+          if (!payload.isNullOrBlank() && remoteTimestamp > lastLocalPushMs) {
+            Log.d(TAG, "Received newer live snapshot from cloud")
             onRemoteDataReceived(payload)
           }
         } else {
@@ -100,16 +157,40 @@ object FirestoreRealtimeSyncManager {
     _syncStatus.value = RealtimeSyncStatus.Disconnected
   }
 
+  suspend fun uploadBudgetDirect(
+    context: Context,
+    uid: String,
+    json: String
+  ) {
+    try {
+      val db = getFirestore(context)
+      val docRef = db.collection("users")
+        .document(uid)
+        .collection("budgets")
+        .document("live_snapshot")
+
+      val data = mapOf(
+        "userId" to uid,
+        "budgetPayload" to json,
+        "updatedAt" to FieldValue.serverTimestamp()
+      )
+      docRef.set(data).await()
+      lastLocalPushMs = System.currentTimeMillis()
+      _syncStatus.value = RealtimeSyncStatus.LiveConnected(1, lastLocalPushMs)
+    } catch (e: Exception) {
+      Log.e(TAG, "Direct upload failed: ${e.message}", e)
+    }
+  }
+
   fun pushLocalChangesRealtime(
     context: Context,
-    profile: UserProfile,
     jsonSupplier: suspend () -> String
   ) {
     val authUser = Firebase.auth.currentUser ?: return
     pushDebounceJob?.cancel()
 
     pushDebounceJob = scope.launch {
-      delay(1000) // 1s debounce to avoid flooding
+      delay(1000) // 1s debounce
       try {
         val json = jsonSupplier()
         val db = getFirestore(context)
@@ -120,16 +201,13 @@ object FirestoreRealtimeSyncManager {
 
         val data = mapOf(
           "userId" to authUser.uid,
-          "profileId" to profile.id,
-          "profileName" to profile.name,
           "budgetPayload" to json,
           "updatedAt" to FieldValue.serverTimestamp()
         )
 
-        docRef.set(data)
-        val now = System.currentTimeMillis()
-        UserManager.updateLastSyncTime(context, profile.id, now)
-        _syncStatus.value = RealtimeSyncStatus.LiveConnected(1, now)
+        docRef.set(data).await()
+        lastLocalPushMs = System.currentTimeMillis()
+        _syncStatus.value = RealtimeSyncStatus.LiveConnected(1, lastLocalPushMs)
       } catch (e: Exception) {
         Log.e(TAG, "Failed to push real-time updates: ${e.message}", e)
       }

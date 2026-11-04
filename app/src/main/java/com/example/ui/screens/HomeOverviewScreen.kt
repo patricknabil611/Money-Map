@@ -399,61 +399,30 @@ fun HomeOverviewScreen(
             // Quick Actions & Summary Footer
             Row(
               modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(10.dp)
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+              verticalAlignment = Alignment.CenterVertically
             ) {
-              OutlinedButton(
+              AppSecondaryButton(
                 onClick = onAddIncome,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.5.dp, colors.income),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                text = "Add Income",
+                icon = Icons.Default.Add,
+                contentColor = colors.income,
+                borderColor = colors.income,
                 modifier = Modifier
                   .weight(1f)
-                  .height(46.dp)
                   .testTag("home_footer_add_income_btn")
-              ) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.Center
-                ) {
-                  Icon(Icons.Default.Add, contentDescription = null, tint = colors.income, modifier = Modifier.size(17.dp))
-                  Spacer(modifier = Modifier.width(4.dp))
-                  Text(
-                    text = "Add Income",
-                    color = colors.income,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp,
-                    maxLines = 1,
-                    softWrap = false
-                  )
-                }
-              }
+              )
 
-              OutlinedButton(
+              AppSecondaryButton(
                 onClick = onAddExpense,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.5.dp, colors.expense),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                text = "Add Expense",
+                icon = Icons.Default.Add,
+                contentColor = colors.expense,
+                borderColor = colors.expense,
                 modifier = Modifier
                   .weight(1f)
-                  .height(46.dp)
                   .testTag("home_footer_add_expense_btn")
-              ) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.Center
-                ) {
-                  Icon(Icons.Default.Add, contentDescription = null, tint = colors.expense, modifier = Modifier.size(17.dp))
-                  Spacer(modifier = Modifier.width(4.dp))
-                  Text(
-                    text = "Add Expense",
-                    color = colors.expense,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp,
-                    maxLines = 1,
-                    softWrap = false
-                  )
-                }
-              }
+              )
             }
           }
         }
@@ -475,7 +444,7 @@ private fun MetricCard(
   val colors = LocalMoneyMapColors.current
 
   Card(
-    shape = RoundedCornerShape(16.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = colors.surface),
     border = BorderStroke(1.dp, colors.line.copy(alpha = 0.55f)),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -488,7 +457,7 @@ private fun MetricCard(
     ) {
       Box(
         modifier = Modifier
-          .clip(RoundedCornerShape(8.dp))
+          .clip(AppShapes.Small)
           .background(accentBg)
           .padding(horizontal = 8.dp, vertical = 4.dp)
       ) {
@@ -548,7 +517,7 @@ private fun DifferenceCard(
   val accentBg = if (isPositive) colors.leftoverSoft else colors.expenseSoft
 
   Card(
-    shape = RoundedCornerShape(16.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = colors.surface),
     border = BorderStroke(1.dp, colors.line.copy(alpha = 0.55f)),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -562,7 +531,7 @@ private fun DifferenceCard(
       Column {
         Box(
           modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShapes.Small)
             .background(accentBg)
             .padding(horizontal = 7.dp, vertical = 2.5.dp)
         ) {
@@ -618,7 +587,7 @@ private fun LoansRemainingCard(
   modifier: Modifier = Modifier
 ) {
   Card(
-    shape = RoundedCornerShape(16.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = colors.surface),
     border = BorderStroke(1.dp, colors.line.copy(alpha = 0.55f)),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -631,7 +600,7 @@ private fun LoansRemainingCard(
     ) {
       Box(
         modifier = Modifier
-          .clip(RoundedCornerShape(8.dp))
+          .clip(AppShapes.Small)
           .background(colors.yearSoft)
           .padding(horizontal = 8.dp, vertical = 4.dp)
       ) {
@@ -673,7 +642,7 @@ private fun LoansRemainingCard(
         modifier = Modifier
           .fillMaxWidth()
           .height(6.dp)
-          .clip(RoundedCornerShape(3.dp)),
+          .clip(AppShapes.Small),
         color = colors.income,
         trackColor = colors.line
       )
@@ -682,7 +651,8 @@ private fun LoansRemainingCard(
 
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
       ) {
         Text(
           text = "Paid ${ArabicNumberHelper.fmt(totalPaid)}",
@@ -712,7 +682,7 @@ private fun IncomeDetailsSection(
   colors: com.example.ui.theme.MoneyMapColors
 ) {
   Card(
-    shape = RoundedCornerShape(18.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = colors.surface),
     border = BorderStroke(1.dp, colors.line.copy(alpha = 0.55f)),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -762,18 +732,14 @@ private fun IncomeDetailsSection(
           }
         }
 
-        OutlinedButton(
+        AppSecondaryButton(
           onClick = onAddIncome,
-          shape = RoundedCornerShape(10.dp),
-          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-          modifier = Modifier
-            .height(36.dp)
-            .testTag("home_income_details_add_btn")
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp), tint = colors.income)
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("Add", color = colors.income, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-        }
+          text = "Add",
+          icon = Icons.Default.Add,
+          contentColor = colors.income,
+          borderColor = colors.income,
+          modifier = Modifier.testTag("home_income_details_add_btn")
+        )
       }
 
       Spacer(modifier = Modifier.height(14.dp))
@@ -782,7 +748,7 @@ private fun IncomeDetailsSection(
         Box(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AppShapes.Medium)
             .background(colors.surface2)
             .padding(vertical = 24.dp, horizontal = 16.dp),
           contentAlignment = Alignment.Center
@@ -794,14 +760,13 @@ private fun IncomeDetailsSection(
               fontWeight = FontWeight.Medium,
               color = colors.muted
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
+            Spacer(modifier = Modifier.height(12.dp))
+            AppPrimaryButton(
               onClick = onAddIncome,
-              shape = RoundedCornerShape(10.dp),
-              colors = ButtonDefaults.buttonColors(containerColor = colors.income)
-            ) {
-              Text("Add Your First Income", color = Color.White, fontSize = 13.sp)
-            }
+              text = "Add Your First Income",
+              containerColor = colors.income,
+              contentColor = Color.White
+            )
           }
         }
       } else {
@@ -817,7 +782,7 @@ private fun IncomeDetailsSection(
             Row(
               modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(AppShapes.Medium)
                 .background(colors.surface2)
                 .clickable { onEditCell(row.id, selectedMonth) }
                 .padding(horizontal = 14.dp, vertical = 10.dp)
@@ -856,7 +821,7 @@ private fun IncomeDetailsSection(
                       Spacer(modifier = Modifier.width(6.dp))
                       Box(
                         modifier = Modifier
-                          .clip(RoundedCornerShape(4.dp))
+                          .clip(AppShapes.Small)
                           .background(colors.leftoverSoft)
                           .padding(horizontal = 5.dp, vertical = 1.dp)
                       ) {
@@ -892,19 +857,13 @@ private fun IncomeDetailsSection(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                IconButton(
+                AppIconButton(
                   onClick = { onEditRow(row.id) },
-                  modifier = Modifier
-                    .size(34.dp)
-                    .testTag("home_income_edit_${row.id}")
-                ) {
-                  Icon(
-                    Icons.Default.Edit,
-                    contentDescription = "Edit ${row.name}",
-                    tint = colors.muted,
-                    modifier = Modifier.size(17.dp)
-                  )
-                }
+                  icon = Icons.Default.Edit,
+                  contentDescription = "Edit ${row.name}",
+                  tint = colors.muted,
+                  modifier = Modifier.testTag("home_income_edit_${row.id}")
+                )
               }
             }
           }
@@ -926,7 +885,7 @@ private fun ExpenseDetailsSection(
   colors: com.example.ui.theme.MoneyMapColors
 ) {
   Card(
-    shape = RoundedCornerShape(18.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = colors.surface),
     border = BorderStroke(1.dp, colors.line.copy(alpha = 0.55f)),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -976,18 +935,14 @@ private fun ExpenseDetailsSection(
           }
         }
 
-        OutlinedButton(
+        AppSecondaryButton(
           onClick = onAddExpense,
-          shape = RoundedCornerShape(10.dp),
-          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-          modifier = Modifier
-            .height(36.dp)
-            .testTag("home_expense_details_add_btn")
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp), tint = colors.expense)
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("Add", color = colors.expense, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-        }
+          text = "Add",
+          icon = Icons.Default.Add,
+          contentColor = colors.expense,
+          borderColor = colors.expense,
+          modifier = Modifier.testTag("home_expense_details_add_btn")
+        )
       }
 
       Spacer(modifier = Modifier.height(14.dp))
@@ -996,7 +951,7 @@ private fun ExpenseDetailsSection(
         Box(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AppShapes.Medium)
             .background(colors.surface2)
             .padding(vertical = 24.dp, horizontal = 16.dp),
           contentAlignment = Alignment.Center
@@ -1008,14 +963,13 @@ private fun ExpenseDetailsSection(
               fontWeight = FontWeight.Medium,
               color = colors.muted
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
+            Spacer(modifier = Modifier.height(12.dp))
+            AppPrimaryButton(
               onClick = onAddExpense,
-              shape = RoundedCornerShape(10.dp),
-              colors = ButtonDefaults.buttonColors(containerColor = colors.expense)
-            ) {
-              Text("Add Your First Expense", color = Color.White, fontSize = 13.sp)
-            }
+              text = "Add Your First Expense",
+              containerColor = colors.expense,
+              contentColor = Color.White
+            )
           }
         }
       } else {
@@ -1031,7 +985,7 @@ private fun ExpenseDetailsSection(
             Row(
               modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(AppShapes.Medium)
                 .background(colors.surface2)
                 .clickable { onEditCell(row.id, selectedMonth) }
                 .padding(horizontal = 14.dp, vertical = 10.dp)
@@ -1078,7 +1032,7 @@ private fun ExpenseDetailsSection(
                       Spacer(modifier = Modifier.width(6.dp))
                       Box(
                         modifier = Modifier
-                          .clip(RoundedCornerShape(4.dp))
+                          .clip(AppShapes.Small)
                           .background(colors.leftoverSoft)
                           .padding(horizontal = 5.dp, vertical = 1.dp)
                       ) {
@@ -1114,19 +1068,13 @@ private fun ExpenseDetailsSection(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                IconButton(
+                AppIconButton(
                   onClick = { onEditRow(row.id) },
-                  modifier = Modifier
-                    .size(34.dp)
-                    .testTag("home_expense_edit_${row.id}")
-                ) {
-                  Icon(
-                    Icons.Default.Edit,
-                    contentDescription = "Edit ${row.name}",
-                    tint = colors.muted,
-                    modifier = Modifier.size(17.dp)
-                  )
-                }
+                  icon = Icons.Default.Edit,
+                  contentDescription = "Edit ${row.name}",
+                  tint = colors.muted,
+                  modifier = Modifier.testTag("home_expense_edit_${row.id}")
+                )
               }
             }
           }

@@ -203,7 +203,7 @@ fun BiometricLockScreen(
       )
 
       Text(
-        text = "Patrick’s Financial Planner",
+        text = "Personal Financial Planner",
         fontSize = 14.sp,
         color = colors.muted
       )

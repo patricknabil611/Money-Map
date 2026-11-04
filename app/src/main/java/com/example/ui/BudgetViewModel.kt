@@ -1,22 +1,30 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
+import com.example.data.drive.GoogleDriveSyncManager
 import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
 import com.example.data.model.PhotoReceipt
 import com.example.data.model.Sha2aItem
 import com.example.data.repository.BudgetRepository
+import com.example.data.sync.FirestoreRealtimeSyncManager
 import com.example.data.user.UserManager
-import com.example.data.user.UserProfile
+import com.example.reminder.ReminderManager
 import com.example.util.ExportConfig
 import com.example.util.ImageExporter
 import com.example.util.ScheduleEngine
+import com.example.util.VoiceParsedTask
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,7 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
+import java.util.Locale
 import java.util.UUID
 
 enum class AppTab(val title: String) {
@@ -89,223 +97,20 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   private val _toastMessage = MutableStateFlow<String?>(null)
   val toastMessage = _toastMessage.asStateFlow()
 
-  // User Profile state
-  private val _currentProfile = MutableStateFlow<com.example.data.user.UserProfile?>(null)
-  val currentProfile = _currentProfile.asStateFlow()
+  // Authenticated Firebase User state
+  private val _currentUser = MutableStateFlow<FirebaseUser?>(FirebaseAuth.getInstance().currentUser)
+  val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
 
-  private val _showUserSelection = MutableStateFlow(true)
-  val showUserSelection = _showUserSelection.asStateFlow()
-
-  // App Lock state (Fingerprint removed, profile selection is the gateway)
+  // App Lock state
   private val _isAppUnlocked = MutableStateFlow(true)
   val isAppUnlocked = _isAppUnlocked.asStateFlow()
 
-  fun unlockApp() {
-    _isAppUnlocked.value = true
-  }
-
-  fun lockApp() {
-    _showUserSelection.value = true
-  }
-
-  fun openUserSelection() {
-    _showUserSelection.value = true
-  }
-
-  fun closeUserSelection() {
-    if (_currentProfile.value != null) {
-      _showUserSelection.value = false
-    }
-  }
-
-  fun selectUserProfile(profile: com.example.data.user.UserProfile) {
-    viewModelScope.launch {
-      val prev = _currentProfile.value
-      val app = getApplication<Application>()
-
-      // 1. If selecting the profile that is ALREADY the active user:
-      // The Room database ALREADY contains this user's live, up-to-date data!
-      // Do NOT reset or overwrite Room DB.
-      if (prev != null && prev.id == profile.id) {
-        UserManager.setSelectedUserId(app, profile.id)
-        _currentProfile.value = profile
-        _showUserSelection.value = false
-        showToast("Profile: ${profile.name}")
-        // Ensure snapshot file is synced with live DB without wiping anything
-        try {
-          val currentJson = repository.exportToJson()
-          UserManager.saveUserSnapshot(app, profile.id, currentJson)
-        } catch (_: Exception) {}
-        return@launch
-      }
-
-      // 2. Switching away from another profile: save previous user's live data first
-      if (prev != null && prev.id != profile.id) {
-        try {
-          val prevJson = repository.exportToJson()
-          UserManager.saveUserSnapshot(app, prev.id, prevJson)
-        } catch (_: Exception) {}
-      }
-
-      // 3. Load target profile's data into Room DB
-      val existingSnapshot = UserManager.loadUserSnapshot(app, profile.id)
-      if (existingSnapshot != null) {
-        repository.importFromJson(existingSnapshot)
-      } else if (profile.isPatrick) {
-        // If Patrick has no snapshot saved yet:
-        // Check if Room DB already has rows (from initial seed or previous work)
-        val existingRows = repository.budgetRows.first()
-        if (existingRows.isEmpty()) {
-          repository.resetToDefault()
-        }
-        val currentJson = repository.exportToJson()
-        UserManager.saveUserSnapshot(app, profile.id, currentJson)
-      } else {
-        val dummyJson = UserManager.getDummyUserDataJson()
-        repository.importFromJson(dummyJson)
-        UserManager.saveUserSnapshot(app, profile.id, dummyJson)
-      }
-
-      UserManager.setSelectedUserId(app, profile.id)
-      _currentProfile.value = profile
-      _showUserSelection.value = false
-      showToast("Profile: ${profile.name}")
-    }
-  }
-
-  val syncState = com.example.data.drive.GoogleDriveSyncManager.syncState
-  val realtimeSyncStatus = com.example.data.sync.FirestoreRealtimeSyncManager.syncStatus
-
-  fun openVoiceDialog() {
-    _showVoiceDialog.value = true
-  }
-
-  fun closeVoiceDialog() {
-    _showVoiceDialog.value = false
-  }
-
-  fun handleVoiceTask(task: com.example.util.VoiceParsedTask, setReminder: Boolean) {
-    viewModelScope.launch {
-      val isIncome = task.kind == "in"
-      val isLoan = task.kind == "loan"
-      val kind = if (isIncome) "in" else "out"
-      val currentM = ScheduleEngine.currentMonth()
-      val st = settings.value.startMonth
-      val startMonth = if (ScheduleEngine.mIdx(currentM) >= ScheduleEngine.mIdx(st)) currentM else st
-
-      val newRow = BudgetRow(
-        id = "row-${UUID.randomUUID().toString().substring(0, 8)}",
-        name = task.title,
-        kind = kind,
-        amount = task.amount,
-        day = task.day,
-        start = startMonth,
-        every = 1,
-        months = task.months,
-        total = if (task.months != null && task.amount > 0) task.amount * task.months else null,
-        stepsJson = "[]",
-        overridesJson = "{}",
-        isLoan = isLoan,
-        paidJson = "{}",
-        sortOrder = (budgetRows.value.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0) + 10
-      )
-
-      repository.saveRow(newRow)
-      persistCurrentProfileSnapshot()
-
-      if (setReminder) {
-        val app = getApplication<Application>()
-        val dayStr = if (task.day != null) "due on day ${task.day}" else "scheduled"
-        com.example.reminder.ReminderManager.showNotification(
-          context = app,
-          notificationId = (100..9999).random(),
-          title = "New ${if (isIncome) "Income" else if (isLoan) "Loan" else "Expense"} Added: ${task.title}",
-          message = "${task.title} for ${task.amount} EGP is $dayStr. Cloud-synced across devices.",
-          isTask = true
-        )
-      }
-
-      showToast("Voice entry added: ${task.title} (${task.amount} EGP)")
-    }
-  }
-
-  private fun persistCurrentProfileSnapshot() {
-    viewModelScope.launch {
-      try {
-        val user = _currentProfile.value ?: return@launch
-        val json = repository.exportToJson()
-        UserManager.saveUserSnapshot(getApplication(), user.id, json)
-        // 1. Google Drive auto-sync
-        com.example.data.drive.GoogleDriveSyncManager.scheduleContinuousAutoSync(
-          context = getApplication(),
-          profile = user,
-          jsonSupplier = { json }
-        )
-        // 2. Firestore real-time cloud sync across devices
-        com.example.data.sync.FirestoreRealtimeSyncManager.pushLocalChangesRealtime(
-          context = getApplication(),
-          profile = user,
-          jsonSupplier = { json }
-        )
-      } catch (_: Exception) {}
-    }
-  }
-
-  fun syncNow() {
-    val user = _currentProfile.value ?: return
-    viewModelScope.launch {
-      val res = com.example.data.drive.GoogleDriveSyncManager.manualSyncNow(
-        context = getApplication(),
-        profile = user,
-        jsonSupplier = { repository.exportToJson() }
-      )
-      com.example.data.sync.FirestoreRealtimeSyncManager.pushLocalChangesRealtime(
-        context = getApplication(),
-        profile = user,
-        jsonSupplier = { repository.exportToJson() }
-      )
-      if (res.isSuccess) {
-        showToast("Auto-synced to Google Drive & Firestore (${user.email.ifBlank { "Google Account" }})")
-      } else {
-        showToast("Sync finished: ${res.exceptionOrNull()?.message ?: "OK"}")
-      }
-    }
-  }
-
-  fun toggleAutoSync(enabled: Boolean) {
-    val user = _currentProfile.value ?: return
-    val app = getApplication<Application>()
-    UserManager.editUser(app, user.id, user.name, user.avatarKey, user.email, enabled)
-    val updated = user.copy(autoSyncEnabled = enabled)
-    _currentProfile.value = updated
-    if (enabled) {
-      persistCurrentProfileSnapshot()
-      showToast("Cloud continuous auto-sync turned ON")
-    } else {
-      showToast("Cloud continuous auto-sync turned OFF")
-    }
-  }
-
-  fun updateUserEmail(email: String) {
-    val user = _currentProfile.value ?: return
-    val app = getApplication<Application>()
-    UserManager.editUser(app, user.id, user.name, user.avatarKey, email, user.autoSyncEnabled)
-    _currentProfile.value = user.copy(email = email)
-    persistCurrentProfileSnapshot()
-  }
+  val syncState = GoogleDriveSyncManager.syncState
+  val realtimeSyncStatus = FirestoreRealtimeSyncManager.syncStatus
 
   init {
     val db = AppDatabase.getDatabase(application)
     repository = BudgetRepository(db.budgetDao(), application)
-
-    val app = application
-    val selectedId = UserManager.getSelectedUserId(app)
-    val allUsers = UserManager.getUsers(app)
-    val chosen = allUsers.find { it.id == selectedId }
-    if (chosen != null) {
-      _currentProfile.value = chosen
-    }
-    _showUserSelection.value = true
 
     budgetRows = repository.budgetRows.stateIn(
       viewModelScope,
@@ -335,6 +140,194 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     viewModelScope.launch {
       repository.checkAndSeedIfEmpty()
+      val user = _currentUser.value
+      if (user != null) {
+        onUserSignedIn(user)
+      }
+    }
+  }
+
+  fun onUserSignedIn(user: FirebaseUser) {
+    _currentUser.value = user
+    val app = getApplication<Application>()
+
+    // Start live Firestore listening
+    FirestoreRealtimeSyncManager.startObservingRemoteChanges(app) { payload ->
+      viewModelScope.launch {
+        repository.importFromJson(payload)
+      }
+    }
+
+    viewModelScope.launch {
+      val email = user.email?.trim()?.lowercase(Locale.ROOT) ?: ""
+      val legacyOwner = UserManager.LEGACY_OWNER_EMAIL.lowercase(Locale.ROOT)
+
+      if (email == legacyOwner) {
+        // One-time legacy migration for Patrick's existing data
+        val alreadyMigratedInFirestore = FirestoreRealtimeSyncManager.isLegacyMigratedInFirestore(app, user.uid)
+        if (!alreadyMigratedInFirestore && !UserManager.isLegacyMigratedLocally(app)) {
+          val isFirestoreEmpty = FirestoreRealtimeSyncManager.isFirestoreBudgetEmpty(app, user.uid)
+          if (isFirestoreEmpty) {
+            val legacySnapshot = UserManager.loadLegacyPatrickSnapshot(app)
+            val localRows = repository.budgetRows.first()
+            val localDataExists = localRows.isNotEmpty() || !legacySnapshot.isNullOrBlank()
+
+            if (localDataExists) {
+              val jsonToUpload = if (localRows.isNotEmpty()) repository.exportToJson() else legacySnapshot!!
+              if (localRows.isEmpty()) {
+                repository.importFromJson(jsonToUpload)
+              }
+              FirestoreRealtimeSyncManager.uploadBudgetDirect(app, user.uid, jsonToUpload)
+              FirestoreRealtimeSyncManager.markLegacyMigratedInFirestore(app, user.uid)
+              UserManager.setLegacyMigratedLocally(app, true)
+              showToast("Your budget was restored to your Google account.")
+            }
+          }
+        }
+      } else {
+        // DIFFERENT account signed in:
+        // Discard local legacy data and start account empty if no cloud data exists
+        UserManager.clearAllLegacyLocalData(app)
+        val remoteJson = FirestoreRealtimeSyncManager.fetchRemoteBudget(app, user.uid)
+        if (!remoteJson.isNullOrBlank()) {
+          repository.importFromJson(remoteJson)
+        } else {
+          val localRows = repository.budgetRows.first()
+          if (localRows.isNotEmpty()) {
+            repository.clearAllBudgetData()
+          }
+        }
+      }
+    }
+  }
+
+  fun signOut(context: Context, onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+      try {
+        FirestoreRealtimeSyncManager.stopObserving()
+        FirebaseAuth.getInstance().signOut()
+        val credentialManager = CredentialManager.create(context)
+        credentialManager.clearCredentialState(ClearCredentialStateRequest())
+        repository.clearAllBudgetData()
+        _currentUser.value = null
+        showToast("Signed out successfully.")
+        onComplete()
+      } catch (e: Exception) {
+        _currentUser.value = null
+        onComplete()
+      }
+    }
+  }
+
+  fun unlockApp() {
+    _isAppUnlocked.value = true
+  }
+
+  fun lockApp() {
+    _isAppUnlocked.value = false
+  }
+
+  private fun persistCurrentBudget() {
+    viewModelScope.launch {
+      try {
+        val user = _currentUser.value ?: return@launch
+        val json = repository.exportToJson()
+        // 1. Google Drive auto-sync
+        GoogleDriveSyncManager.scheduleContinuousAutoSync(
+          context = getApplication(),
+          userEmail = user.email ?: "",
+          userId = user.uid,
+          jsonSupplier = { json }
+        )
+        // 2. Firestore real-time cloud sync across devices
+        FirestoreRealtimeSyncManager.pushLocalChangesRealtime(
+          context = getApplication(),
+          jsonSupplier = { json }
+        )
+      } catch (_: Exception) {}
+    }
+  }
+
+  fun syncNow() {
+    val user = _currentUser.value ?: return
+    viewModelScope.launch {
+      val res = GoogleDriveSyncManager.manualSyncNow(
+        context = getApplication(),
+        userEmail = user.email ?: "",
+        userId = user.uid,
+        jsonSupplier = { repository.exportToJson() }
+      )
+      FirestoreRealtimeSyncManager.pushLocalChangesRealtime(
+        context = getApplication(),
+        jsonSupplier = { repository.exportToJson() }
+      )
+      if (res.isSuccess) {
+        showToast("Auto-synced to Google Drive & Firestore (${user.email ?: "Google Account"})")
+      } else {
+        showToast("Sync finished: ${res.exceptionOrNull()?.message ?: "OK"}")
+      }
+    }
+  }
+
+  fun toggleAutoSync(enabled: Boolean) {
+    if (enabled) {
+      persistCurrentBudget()
+      showToast("Cloud continuous auto-sync turned ON")
+    } else {
+      showToast("Cloud continuous auto-sync turned OFF")
+    }
+  }
+
+  fun openVoiceDialog() {
+    _showVoiceDialog.value = true
+  }
+
+  fun closeVoiceDialog() {
+    _showVoiceDialog.value = false
+  }
+
+  fun handleVoiceTask(task: VoiceParsedTask, setReminder: Boolean) {
+    viewModelScope.launch {
+      val isIncome = task.kind == "in"
+      val isLoan = task.kind == "loan"
+      val kind = if (isIncome) "in" else "out"
+      val currentM = ScheduleEngine.currentMonth()
+      val st = settings.value.startMonth
+      val startMonth = if (ScheduleEngine.mIdx(currentM) >= ScheduleEngine.mIdx(st)) currentM else st
+
+      val newRow = BudgetRow(
+        id = "row-${UUID.randomUUID().toString().substring(0, 8)}",
+        name = task.title,
+        kind = kind,
+        amount = task.amount,
+        day = task.day,
+        start = startMonth,
+        every = 1,
+        months = task.months,
+        total = if (task.months != null && task.amount > 0) task.amount * task.months else null,
+        stepsJson = "[]",
+        overridesJson = "{}",
+        isLoan = isLoan,
+        paidJson = "{}",
+        sortOrder = (budgetRows.value.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0) + 10
+      )
+
+      repository.saveRow(newRow)
+      persistCurrentBudget()
+
+      if (setReminder) {
+        val app = getApplication<Application>()
+        val dayStr = if (task.day != null) "due on day ${task.day}" else "scheduled"
+        ReminderManager.showNotification(
+          context = app,
+          notificationId = (100..9999).random(),
+          title = "New ${if (isIncome) "Income" else if (isLoan) "Loan" else "Expense"} Added: ${task.title}",
+          message = "${task.title} for ${task.amount} EGP is $dayStr. Cloud-synced across devices.",
+          isTask = true
+        )
+      }
+
+      showToast("Voice entry added: ${task.title} (${task.amount} EGP)")
     }
   }
 
@@ -351,16 +344,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   fun addProject(name: String, description: String = "") {
     viewModelScope.launch {
-      val id = "proj-${System.currentTimeMillis()}"
-      val p = com.example.data.model.ProjectEntity(
-        id = id,
-        name = name.trim(),
-        description = description.trim(),
-        sortOrder = (projects.value.size + 1) * 10
+      val maxOrder = projects.value.maxOfOrNull { it.sortOrder } ?: 0
+      val newProj = com.example.data.model.ProjectEntity(
+        id = "proj_${System.currentTimeMillis()}",
+        name = name,
+        description = description,
+        sortOrder = maxOrder + 1
       )
-      repository.saveProject(p)
-      persistCurrentProfileSnapshot()
-      showToast("Project added.")
+      repository.saveProject(newProj)
+      _selectedProjectId.value = newProj.id
+      persistCurrentBudget()
+      showToast("Project '$name' created.")
     }
   }
 
@@ -370,18 +364,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       if (_selectedProjectId.value == id) {
         _selectedProjectId.value = null
       }
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
       showToast("Project deleted.")
-    }
-  }
-
-  fun updateProject(id: String, name: String, description: String = "") {
-    viewModelScope.launch {
-      val existing = projects.value.find { it.id == id } ?: return@launch
-      val updated = existing.copy(name = name.trim(), description = description.trim())
-      repository.updateProject(updated)
-      persistCurrentProfileSnapshot()
-      showToast("Project updated.")
     }
   }
 
@@ -389,38 +373,27 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     _selectedMonth.value = m
   }
 
-  fun toggleLoanExpanded(id: String) {
+  fun toggleLoanExpanded(rowId: String) {
     val current = _openLoanIds.value
-    if (current.contains(id)) {
-      _openLoanIds.value = current - id
-    } else {
-      _openLoanIds.value = current + id
+    _openLoanIds.value = if (current.contains(rowId)) current - rowId else current + rowId
+  }
+
+  fun togglePaid(rowId: String, month: String, isPaid: Boolean) {
+    viewModelScope.launch {
+      repository.setRowPaidMonth(rowId, month, isPaid)
+      persistCurrentBudget()
     }
   }
 
-  fun showToast(msg: String) {
-    _toastMessage.value = msg
-  }
-
-  fun clearToast() {
-    _toastMessage.value = null
-  }
-
-  // Row operations
   fun openAddRow(kind: String, isLoan: Boolean = false) {
-    val rows = budgetRows.value.filter { it.kind == kind }
-    val maxOrder = rows.maxOfOrNull { it.sortOrder } ?: 0
-    val currentM = ScheduleEngine.currentMonth()
-    val st = settings.value.startMonth
-    val startMonth = if (ScheduleEngine.mIdx(currentM) >= ScheduleEngine.mIdx(st)) currentM else st
-
+    val maxOrder = budgetRows.value.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0
     _editingRow.value = BudgetRow(
-      id = "row-${UUID.randomUUID().toString().substring(0, 8)}",
+      id = "",
       name = "",
       kind = kind,
       amount = 0.0,
       day = null,
-      start = startMonth,
+      start = settings.value.startMonth,
       every = 1,
       months = null,
       total = null,
@@ -434,61 +407,53 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun openEditRow(id: String) {
-    val row = budgetRows.value.find { it.id == id } ?: return
-    _editingRow.value = row
-    _isNewRow.value = false
+    viewModelScope.launch {
+      val row = repository.getRowById(id)
+      if (row != null) {
+        _editingRow.value = row
+        _isNewRow.value = false
+      }
+    }
   }
 
   fun closeRowEditor() {
     _editingRow.value = null
+    _isNewRow.value = false
   }
 
   fun saveRow(row: BudgetRow) {
     viewModelScope.launch {
-      repository.saveRow(row)
+      val toSave = if (row.id.isBlank()) {
+        row.copy(id = "row-${UUID.randomUUID().toString().substring(0, 8)}")
+      } else {
+        row
+      }
+      repository.saveRow(toSave)
       closeRowEditor()
-      persistCurrentProfileSnapshot()
-    }
-  }
-
-  fun insertRow(row: BudgetRow) {
-    viewModelScope.launch {
-      repository.insertRow(row)
-      closeRowEditor()
-      persistCurrentProfileSnapshot()
-    }
-  }
-
-  fun updateRow(row: BudgetRow) {
-    viewModelScope.launch {
-      repository.updateRow(row)
-      closeRowEditor()
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
+      showToast("Saved ${toSave.name}")
     }
   }
 
   fun deleteRow(id: String) {
     viewModelScope.launch {
+      val row = repository.getRowById(id)
       repository.deleteRow(id)
       closeRowEditor()
-      persistCurrentProfileSnapshot()
-      showToast("Row deleted.")
+      persistCurrentBudget()
+      showToast("Deleted ${row?.name ?: "row"}")
     }
   }
 
   fun moveRow(id: String, direction: Int) {
     viewModelScope.launch {
-      val moved = repository.moveRow(id, direction)
-      if (moved) {
-        persistCurrentProfileSnapshot()
-        showToast(if (direction < 0) "Moved up." else "Moved down.")
-      } else {
-        showToast(if (direction < 0) "Already at the top." else "Already at the bottom.")
+      val success = repository.moveRow(id, direction)
+      if (success) {
+        persistCurrentBudget()
       }
     }
   }
 
-  // Cell operations
   fun openCell(rowId: String, month: String) {
     _editingCell.value = Pair(rowId, month)
   }
@@ -499,17 +464,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   fun saveCellOverride(rowId: String, month: String, amount: Double, forThisMonthOnly: Boolean) {
     viewModelScope.launch {
-      val st = settings.value
       repository.updateSingleMonthOverride(
         id = rowId,
         month = month,
         amount = amount,
         forThisMonthOnly = forThisMonthOnly,
-        rangeStart = st.startMonth,
-        rangeEnd = st.endMonth
+        rangeStart = settings.value.startMonth,
+        rangeEnd = settings.value.endMonth
       )
       closeCell()
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
+      showToast("Updated cell for $month")
     }
   }
 
@@ -517,25 +482,22 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.resetMonthOverride(rowId, month)
       closeCell()
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
+      showToast("Reset cell for $month")
     }
   }
 
-  fun togglePaid(rowId: String, month: String, isPaid: Boolean) {
-    viewModelScope.launch {
-      repository.setRowPaidMonth(rowId, month, isPaid)
-      persistCurrentProfileSnapshot()
-    }
-  }
-
-  // Sha2a operations
   fun openAddSha2a(side: String) {
     _editingSha2a.value = Pair(null, side)
   }
 
   fun openEditSha2a(id: String) {
-    val item = sha2aItems.value.find { it.id == id } ?: return
-    _editingSha2a.value = Pair(item.id, item.side)
+    viewModelScope.launch {
+      val item = repository.getSha2aById(id)
+      if (item != null) {
+        _editingSha2a.value = Pair(id, item.side)
+      }
+    }
   }
 
   fun closeSha2aEditor() {
@@ -544,25 +506,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   fun saveSha2a(item: Sha2aItem) {
     viewModelScope.launch {
-      repository.saveSha2aItem(item)
+      val toSave = if (item.id.isBlank()) {
+        val maxOrder = sha2aItems.value.filter { it.side == item.side }.maxOfOrNull { it.sortOrder } ?: 0
+        item.copy(
+          id = "sha2a-${UUID.randomUUID().toString().substring(0, 8)}",
+          sortOrder = maxOrder + 1
+        )
+      } else {
+        item
+      }
+      repository.saveSha2aItem(toSave)
       closeSha2aEditor()
-      persistCurrentProfileSnapshot()
-    }
-  }
-
-  fun insertSha2aItem(item: Sha2aItem) {
-    viewModelScope.launch {
-      repository.insertSha2aItem(item)
-      closeSha2aEditor()
-      persistCurrentProfileSnapshot()
-    }
-  }
-
-  fun updateSha2aItem(item: Sha2aItem) {
-    viewModelScope.launch {
-      repository.updateSha2aItem(item)
-      closeSha2aEditor()
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
+      showToast("Saved ${toSave.name}")
     }
   }
 
@@ -570,12 +526,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.deleteSha2aItem(id)
       closeSha2aEditor()
-      persistCurrentProfileSnapshot()
-      showToast("Item deleted.")
+      persistCurrentBudget()
+      showToast("Deleted item.")
     }
   }
 
-  // Photo receipts operations
   fun openPhoto(photo: PhotoReceipt) {
     _viewingPhoto.value = photo
   }
@@ -584,11 +539,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     _viewingPhoto.value = null
   }
 
-  fun updatePhotoCaption(id: String, caption: String) {
+  fun updatePhotoCaption(id: String, newCaption: String) {
     viewModelScope.launch {
-      repository.updatePhotoReceiptCaption(id, caption)
-      closePhoto()
-      persistCurrentProfileSnapshot()
+      repository.updatePhotoCaption(id, newCaption)
+      persistCurrentBudget()
+      showToast("Caption saved.")
     }
   }
 
@@ -596,7 +551,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.deletePhotoReceipt(id)
       closePhoto()
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
       showToast("Photo deleted.")
     }
   }
@@ -618,7 +573,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
           }
         }
         repository.savePhotoReceipt(caption, fileName, projectId)
-        persistCurrentProfileSnapshot()
+        persistCurrentBudget()
         showToast("Receipt photo added.")
       } catch (e: Exception) {
         showToast("Couldn't add photo. Try again.")
@@ -626,7 +581,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  // Settings operations
   fun openSettings() {
     _showSettings.value = true
   }
@@ -638,7 +592,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   fun updateRange(start: String, end: String) {
     viewModelScope.launch {
       repository.updateSettings(start, end)
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
       showToast("Range updated.")
     }
   }
@@ -646,7 +600,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   fun updateTheme(themeMode: String) {
     viewModelScope.launch {
       repository.updateThemeMode(themeMode)
-      persistCurrentProfileSnapshot()
+      persistCurrentBudget()
     }
   }
 
@@ -667,11 +621,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
-  fun importJson(content: String, onComplete: (Boolean) -> Unit) {
+  fun importJson(content: String, onComplete: (Boolean) -> Unit = {}) {
     viewModelScope.launch {
       val res = repository.importFromJson(content)
       if (res.isSuccess) {
-        persistCurrentProfileSnapshot()
+        persistCurrentBudget()
         showToast("Backup imported successfully.")
         onComplete(true)
       } else {
@@ -682,15 +636,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun resetToDefault() {
+    clearAllBudgetData()
+  }
+
+  fun clearAllBudgetData() {
     viewModelScope.launch {
-      repository.resetToDefault()
-      persistCurrentProfileSnapshot()
-      showToast("Reset to initial budget.")
+      repository.clearAllBudgetData()
+      persistCurrentBudget()
+      showToast("Cleared all budget data.")
       closeSettings()
     }
   }
 
-  // Export to Mariam
   fun openExportMariam() {
     _showExportMariam.value = true
   }
@@ -711,5 +668,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       )
       onImageReady(bitmap)
     }
+  }
+
+  fun showToast(msg: String) {
+    _toastMessage.value = msg
+  }
+
+  fun clearToast() {
+    _toastMessage.value = null
   }
 }

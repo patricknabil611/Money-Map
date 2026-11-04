@@ -76,7 +76,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.data.user.ProfileAvatarView
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Logout
+import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseUser
 import com.example.ui.AppTab
 import com.example.ui.BudgetViewModel
 import com.example.ui.components.CellEditorSheet
@@ -90,7 +93,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoansScreen
 import com.example.ui.screens.MonthScreen
 import com.example.ui.screens.Sha2aScreen
-import com.example.ui.screens.UserSelectionScreen
+import com.example.ui.screens.SignInScreen
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.ScheduleEngine
@@ -151,13 +154,12 @@ class MainActivity : FragmentActivity() {
       }
 
       MyApplicationTheme(darkTheme = isDark) {
-        val showUserSelection by viewModel.showUserSelection.collectAsStateWithLifecycle()
-        val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+        val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
 
         Box(modifier = Modifier.fillMaxSize()) {
-          if (showUserSelection || currentProfile == null) {
-            UserSelectionScreen(
-              onUserSelected = { profile -> viewModel.selectUserProfile(profile) }
+          if (currentUser == null) {
+            SignInScreen(
+              onSignInSuccess = { user -> viewModel.onUserSignedIn(user) }
             )
           } else {
             MoneyMapApp(
@@ -182,6 +184,7 @@ class MainActivity : FragmentActivity() {
           // Top-level Orange Edge Lighting Overlay triggered by notification
           if (triggerEdgeLighting.value) {
             SamsungEdgeLightingOverlay(
+              isActive = true,
               title = "P Money Update Reminder",
               message = "Weekly update reminder! Tap to open update setup.",
               onDismiss = { triggerEdgeLighting.value = false },
@@ -223,6 +226,122 @@ class MainActivity : FragmentActivity() {
   }
 }
 
+@Composable
+fun UserAccountAvatarButton(
+  user: FirebaseUser?,
+  colors: com.example.ui.theme.MoneyMapColors,
+  onSignOut: () -> Unit,
+  modifier: Modifier = Modifier,
+  testTag: String = "switch_profile_top_btn"
+) {
+  var showAccountMenu by remember { mutableStateOf(false) }
+  var showConfirmSignOut by remember { mutableStateOf(false) }
+
+  Box(modifier = modifier) {
+    IconButton(
+      onClick = { showAccountMenu = true },
+      modifier = Modifier.testTag(testTag)
+    ) {
+      if (user?.photoUrl != null) {
+        AsyncImage(
+          model = user.photoUrl,
+          contentDescription = "Google Account Menu",
+          modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+        )
+      } else {
+        Box(
+          modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(colors.head),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(
+            text = (user?.displayName?.firstOrNull() ?: user?.email?.firstOrNull() ?: 'U').uppercase(),
+            color = colors.headInk,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+          )
+        }
+      }
+    }
+
+    DropdownMenu(
+      expanded = showAccountMenu,
+      onDismissRequest = { showAccountMenu = false },
+      modifier = Modifier.background(colors.surface)
+    ) {
+      Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(
+          text = user?.displayName ?: "Google User",
+          fontWeight = FontWeight.Bold,
+          color = colors.ink,
+          fontSize = 14.sp
+        )
+        Text(
+          text = user?.email ?: "",
+          color = colors.muted,
+          fontSize = 12.sp
+        )
+      }
+      androidx.compose.material3.Divider(color = colors.line)
+      DropdownMenuItem(
+        text = {
+          Text(
+            text = "Sign out",
+            color = colors.expense,
+            fontWeight = FontWeight.SemiBold
+          )
+        },
+        leadingIcon = {
+          Icon(
+            imageVector = Icons.Default.Logout,
+            contentDescription = "Sign out",
+            tint = colors.expense
+          )
+        },
+        onClick = {
+          showAccountMenu = false
+          showConfirmSignOut = true
+        }
+      )
+    }
+  }
+
+  if (showConfirmSignOut) {
+    androidx.compose.material3.AlertDialog(
+      onDismissRequest = { showConfirmSignOut = false },
+      title = { Text("Sign Out", fontWeight = FontWeight.Bold, color = colors.ink) },
+      text = {
+        Text(
+          "Are you sure you want to sign out? Your budget data remains safely saved in your Google account in the cloud.",
+          color = colors.ink
+        )
+      },
+      confirmButton = {
+        com.example.ui.components.AppPrimaryButton(
+          text = "Sign Out",
+          containerColor = colors.expense,
+          contentColor = Color.White,
+          onClick = {
+            showConfirmSignOut = false
+            onSignOut()
+          }
+        )
+      },
+      dismissButton = {
+        com.example.ui.components.AppSecondaryButton(
+          text = "Cancel",
+          onClick = { showConfirmSignOut = false }
+        )
+      },
+      containerColor = colors.surface
+    )
+  }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoneyMapApp(
@@ -232,6 +351,7 @@ fun MoneyMapApp(
   onConsumeNotificationIntent: () -> Unit = {}
 ) {
   val colors = LocalMoneyMapColors.current
+  val context = androidx.compose.ui.platform.LocalContext.current
   val configuration = LocalConfiguration.current
   val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
   val isExpandedScreen = configuration.screenWidthDp >= 800 || isLandscape
@@ -245,7 +365,12 @@ fun MoneyMapApp(
   val settings by viewModel.settings.collectAsStateWithLifecycle()
   val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
   val openLoanIds by viewModel.openLoanIds.collectAsStateWithLifecycle()
-  val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+  val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+
+  val userFirstName = currentUser?.displayName?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
+    ?: currentUser?.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
+    ?: "My"
+  val budgetSubtitle = "$userFirstName’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}"
 
   val isSystemDark = isSystemInDarkTheme()
   val isCurrentDark = when (settings.themeMode) {
@@ -308,14 +433,13 @@ fun MoneyMapApp(
         containerColor = colors.surface,
         header = {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            IconButton(
-              onClick = { viewModel.openUserSelection() },
-              modifier = Modifier
-                .padding(top = 8.dp)
-                .testTag("switch_user_nav_rail_btn")
-            ) {
-              ProfileAvatarView(avatarKey = currentProfile?.avatarKey, modifier = Modifier.size(30.dp), shape = RoundedCornerShape(6.dp))
-            }
+            UserAccountAvatarButton(
+              user = currentUser,
+              colors = colors,
+              onSignOut = { viewModel.signOut(context) },
+              modifier = Modifier.padding(top = 8.dp),
+              testTag = "switch_user_nav_rail_btn"
+            )
             IconButton(
               onClick = { viewModel.openSettings() },
               modifier = Modifier
@@ -457,7 +581,7 @@ fun MoneyMapApp(
           }
           Spacer(modifier = Modifier.size(12.dp))
           Text(
-            text = "${currentProfile?.name ?: "Patrick"}’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}",
+            text = budgetSubtitle,
             fontSize = 12.5.sp,
             color = colors.muted,
             modifier = Modifier.weight(1f)
@@ -472,12 +596,12 @@ fun MoneyMapApp(
               tint = colors.head
             )
           }
-          IconButton(
-            onClick = { viewModel.openUserSelection() },
-            modifier = Modifier.testTag("switch_profile_dex_btn")
-          ) {
-            ProfileAvatarView(avatarKey = currentProfile?.avatarKey, modifier = Modifier.size(28.dp), shape = RoundedCornerShape(6.dp))
-          }
+          UserAccountAvatarButton(
+            user = currentUser,
+            colors = colors,
+            onSignOut = { viewModel.signOut(context) },
+            testTag = "switch_profile_dex_btn"
+          )
           IconButton(
             onClick = { showNotificationSetup = true },
             modifier = Modifier.testTag("notification_setup_dex_btn")
@@ -560,7 +684,7 @@ fun MoneyMapApp(
                 overflow = TextOverflow.Ellipsis
               )
               Text(
-                text = "${currentProfile?.name ?: "Patrick"}’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}",
+                text = budgetSubtitle,
                 fontSize = 12.sp,
                 color = colors.muted,
                 maxLines = 1,
@@ -579,12 +703,12 @@ fun MoneyMapApp(
                 tint = colors.head
               )
             }
-            IconButton(
-              onClick = { viewModel.openUserSelection() },
-              modifier = Modifier.testTag("switch_profile_top_btn")
-            ) {
-              ProfileAvatarView(avatarKey = currentProfile?.avatarKey, modifier = Modifier.size(28.dp), shape = AppShapes.Small)
-            }
+            UserAccountAvatarButton(
+              user = currentUser,
+              colors = colors,
+              onSignOut = { viewModel.signOut(context) },
+              testTag = "switch_profile_top_btn"
+            )
             Box {
               IconButton(
                 onClick = { showTopMenu = true },
@@ -864,7 +988,7 @@ fun MoneyMapApp(
   if (showSettings) {
     SettingsSheet(
       settings = settings,
-      currentProfile = currentProfile,
+      currentUser = currentUser,
       onDismiss = { viewModel.closeSettings() },
       onUpdateRange = { start, end -> viewModel.updateRange(start, end) },
       onUpdateTheme = { mode -> viewModel.updateTheme(mode) },
@@ -879,9 +1003,9 @@ fun MoneyMapApp(
         viewModel.closeSettings()
         viewModel.lockApp()
       },
-      onManageUsers = {
+      onSignOut = {
         viewModel.closeSettings()
-        viewModel.openUserSelection()
+        viewModel.signOut(context)
       },
       onOpenNotificationSetup = {
         viewModel.closeSettings()

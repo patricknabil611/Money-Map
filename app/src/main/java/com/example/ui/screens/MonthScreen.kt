@@ -41,7 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
+import com.example.ui.components.AppIconButton
 import com.example.ui.components.MonthDropdown
+import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
 import com.example.util.ScheduleEngine
@@ -109,13 +111,13 @@ fun MonthScreen(
           .padding(bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        IconButton(
+        AppIconButton(
           onClick = { if (canPrev) onMonthChange(selectableMonths[currentIndex - 1]) },
           enabled = canPrev,
+          icon = Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = "Previous month",
           modifier = Modifier.testTag("month_prev_btn")
-        ) {
-          Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous month")
-        }
+        )
 
         MonthDropdown(
           label = "Month",
@@ -124,13 +126,13 @@ fun MonthScreen(
           modifier = Modifier.weight(1f)
         )
 
-        IconButton(
+        AppIconButton(
           onClick = { if (canNext) onMonthChange(selectableMonths[currentIndex + 1]) },
           enabled = canNext,
+          icon = Icons.AutoMirrored.Filled.ArrowForward,
+          contentDescription = "Next month",
           modifier = Modifier.testTag("month_next_btn")
-        ) {
-          Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next month")
-        }
+        )
       }
     }
 
@@ -140,7 +142,7 @@ fun MonthScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(bottom = 16.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
@@ -158,7 +160,7 @@ fun MonthScreen(
             )
             Box(
               modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
+                .clip(AppShapes.Small)
                 .background(if (leftover >= 0) colors.incomeSoft else colors.expenseSoft)
                 .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
@@ -224,7 +226,7 @@ fun MonthScreen(
             Column(
               modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(AppShapes.Small)
                 .background(colors.surface2.copy(alpha = 0.6f))
                 .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
@@ -242,7 +244,7 @@ fun MonthScreen(
             Column(
               modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(AppShapes.Small)
                 .background(colors.surface2.copy(alpha = 0.6f))
                 .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
@@ -260,7 +262,7 @@ fun MonthScreen(
             Column(
               modifier = Modifier
                 .weight(0.9f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(AppShapes.Small)
                 .background(colors.surface2.copy(alpha = 0.6f))
                 .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
@@ -294,7 +296,7 @@ fun MonthScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(bottom = 16.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
@@ -343,7 +345,7 @@ fun MonthScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(bottom = 24.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
@@ -414,7 +416,7 @@ fun MonthRowItem(
     Box(
       modifier = Modifier
         .size(38.dp)
-        .clip(RoundedCornerShape(10.dp))
+        .clip(AppShapes.Medium)
         .background(colors.surface2),
       contentAlignment = Alignment.Center
     ) {
@@ -505,7 +507,7 @@ fun MonthBarChartCard(
     modifier = Modifier
       .fillMaxWidth()
       .padding(bottom = 16.dp),
-    shape = RoundedCornerShape(16.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = colors.surface),
     border = CardDefaults.outlinedCardBorder()
   ) {
@@ -561,7 +563,7 @@ fun MonthBarChartCard(
         modifier = Modifier
           .fillMaxWidth()
           .height(160.dp)
-          .background(colors.surface2.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+          .background(colors.surface2.copy(alpha = 0.5f), AppShapes.Medium)
           .padding(horizontal = 24.dp, vertical = 12.dp)
       ) {
         // Grid reference lines
@@ -648,7 +650,7 @@ fun MonthBarChartCard(
       Box(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(10.dp))
+          .clip(AppShapes.Small)
           .background(if (diff >= 0) colors.incomeSoft else colors.expenseSoft)
           .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center

@@ -132,6 +132,6 @@ data class AppSettings(
   val startMonth: String = "2026-11",
   val endMonth: String = "2027-12",
   val themeMode: String = "system", // "system", "light", "dark"
-  val driveAccount: String = "patricknabil611@gmail.com",
+  val driveAccount: String = "",
   val lastDriveBackup: Long = 0L
 )

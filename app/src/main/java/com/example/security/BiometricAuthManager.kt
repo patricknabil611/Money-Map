@@ -299,52 +299,44 @@ object BiometricAuthManager {
   }
 
   /**
-   * Dedicated fingerprint authentication for Patrick profile, locked exclusively to
-   * the authorized Samsung Galaxy S25 Ultra (Serial: R5CY14B6HZD).
+   * Generic biometric fingerprint authentication.
    */
-  fun authenticatePatrickFingerprint(
+  fun authenticate(
     activity: FragmentActivity,
     onSuccess: () -> Unit,
-    onFallbackToPassword: () -> Unit,
+    onNegativeButton: () -> Unit,
     onError: (String) -> Unit
   ) {
-    if (!DeviceSecurityManager.isAuthorizedPatrickDevice(activity)) {
-      onError("Fingerprint access is locked to Patrick's Samsung Galaxy S25 Ultra (Serial: ${DeviceSecurityManager.TARGET_SERIAL}). On this device, please enter password.")
-      onFallbackToPassword()
-      return
-    }
-
     val availability = checkBiometricAvailability(activity)
     if (availability != BiometricAvailability.READY) {
       if (availability == BiometricAvailability.NOT_ENROLLED) {
-        onError("No fingerprints enrolled on this device. Please register a fingerprint in Samsung Settings.")
+        onError("No biometrics enrolled on this device. Please register a fingerprint in device settings.")
       } else {
         onError("Biometric sensor unavailable on this device.")
       }
-      onFallbackToPassword()
+      onNegativeButton()
       return
     }
 
     val executor = ContextCompat.getMainExecutor(activity)
     val promptInfo = BiometricPrompt.PromptInfo.Builder()
-      .setTitle("Patrick Profile Fingerprint Unlock")
-      .setSubtitle("Bound to Samsung Galaxy S25 Ultra")
-      .setDescription("Touch fingerprint sensor to unlock Patrick's workspace")
-      .setNegativeButtonText("Use Password")
+      .setTitle("Fingerprint Unlock")
+      .setSubtitle("P Money biometric security")
+      .setDescription("Touch fingerprint sensor to unlock the app")
+      .setNegativeButtonText("Cancel")
       .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
       .build()
 
     val biometricPrompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
       override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
         super.onAuthenticationSucceeded(result)
-        DeviceSecurityManager.bindThisDeviceAsPatrickPhone(activity)
         onSuccess()
       }
 
       override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
         super.onAuthenticationError(errorCode, errString)
         if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON || errorCode == BiometricPrompt.ERROR_USER_CANCELED) {
-          onFallbackToPassword()
+          onNegativeButton()
         } else {
           onError(errString.toString())
         }

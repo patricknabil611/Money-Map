@@ -34,7 +34,7 @@ class BudgetRepository(
   suspend fun checkAndSeedIfEmpty() = withContext(Dispatchers.IO) {
     val existing = dao.getSettingsSync()
     if (existing == null) {
-      AppDatabase.populateInitialData(context, AppDatabase.getDatabase(context))
+      dao.insertSettings(AppSettings())
     }
     val existingProjects = dao.getAllProjects().first()
     if (existingProjects.isEmpty()) {
@@ -221,6 +221,22 @@ class BudgetRepository(
   suspend fun updatePhotoReceiptCaption(id: String, caption: String) = withContext(Dispatchers.IO) {
     val photo = dao.getPhotoReceiptById(id) ?: dao.getAllPhotoReceipts().first().find { it.id == id } ?: return@withContext
     dao.updatePhotoReceipt(photo.copy(caption = caption))
+  }
+
+  suspend fun getRowById(id: String): BudgetRow? = withContext(Dispatchers.IO) {
+    dao.getBudgetRowById(id)
+  }
+
+  suspend fun getSha2aById(id: String): Sha2aItem? = withContext(Dispatchers.IO) {
+    dao.getSha2aItemById(id)
+  }
+
+  suspend fun getPhotoById(id: String): PhotoReceipt? = withContext(Dispatchers.IO) {
+    dao.getPhotoReceiptById(id)
+  }
+
+  suspend fun updatePhotoCaption(id: String, caption: String) = withContext(Dispatchers.IO) {
+    updatePhotoReceiptCaption(id, caption)
   }
 
   suspend fun deletePhotoReceipt(id: String) = withContext(Dispatchers.IO) {
@@ -429,6 +445,15 @@ class BudgetRepository(
   }
 
   suspend fun resetToDefault() = withContext(Dispatchers.IO) {
-    AppDatabase.populateInitialData(context, AppDatabase.getDatabase(context))
+    clearAllBudgetData()
+  }
+
+  suspend fun clearAllBudgetData() = withContext(Dispatchers.IO) {
+    dao.replaceAllData(
+      settings = AppSettings(),
+      rows = emptyList(),
+      sha2a = emptyList(),
+      photos = emptyList()
+    )
   }
 }
