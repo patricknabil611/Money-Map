@@ -144,22 +144,56 @@ fun MonthScreen(
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-          Text(
-            text = "Left over in ${ScheduleEngine.mLabel(selectedMonth)}",
-            color = colors.muted,
-            fontSize = 14.sp
-          )
+        Column(modifier = Modifier.padding(18.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(
+              text = "Left over in ${ScheduleEngine.mLabel(selectedMonth)}",
+              color = colors.muted,
+              fontSize = 13.5.sp,
+              fontWeight = FontWeight.Medium
+            )
+            Box(
+              modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (leftover >= 0) colors.incomeSoft else colors.expenseSoft)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+              Text(
+                text = if (leftover >= 0) "Surplus" else "Deficit",
+                color = if (leftover >= 0) colors.income else colors.expense,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
 
-          Spacer(modifier = Modifier.height(4.dp))
+          Spacer(modifier = Modifier.height(6.dp))
 
-          Text(
-            text = ArabicNumberHelper.fmt(leftover),
-            color = if (leftover < 0) colors.expense else colors.leftover,
-            fontWeight = FontWeight.Bold,
-            fontSize = 44.sp,
-            lineHeight = 48.sp
-          )
+          Row(
+            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Text(
+              text = ArabicNumberHelper.fmt(leftover),
+              color = if (leftover < 0) colors.expense else colors.leftover,
+              fontWeight = FontWeight.Bold,
+              fontSize = 36.sp,
+              lineHeight = 40.sp,
+              maxLines = 1
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "EGP",
+              color = colors.muted,
+              fontSize = 14.sp,
+              fontWeight = FontWeight.SemiBold,
+              modifier = Modifier.padding(bottom = 5.dp)
+            )
+          }
 
           Spacer(modifier = Modifier.height(14.dp))
 
@@ -167,51 +201,77 @@ fun MonthScreen(
           Box(
             modifier = Modifier
               .fillMaxWidth()
-              .height(12.dp)
+              .height(10.dp)
               .clip(CircleShape)
               .background(colors.incomeSoft)
           ) {
             Box(
               modifier = Modifier
                 .fillMaxWidth((pctSpent / 100f).toFloat())
-                .height(12.dp)
+                .height(10.dp)
                 .clip(CircleShape)
                 .background(colors.expense)
             )
           }
 
-          Spacer(modifier = Modifier.height(16.dp))
+          Spacer(modifier = Modifier.height(14.dp))
 
-          // Stats row
+          // Balanced 3-column stats with concise wording that displays properly on Samsung Galaxy S25 Ultra
           Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
           ) {
-            Column {
-              Text("Income", color = colors.muted, fontSize = 12.5.sp)
+            Column(
+              modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.surface2.copy(alpha = 0.6f))
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+              Text("Income", color = colors.muted, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+              Spacer(modifier = Modifier.height(2.dp))
               Text(
-                ArabicNumberHelper.fmt(incTotal),
+                text = ArabicNumberHelper.fmt(incTotal),
                 color = colors.income,
                 fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
+                fontSize = 15.sp,
+                maxLines = 1
               )
             }
-            Column {
-              Text("Expenses", color = colors.muted, fontSize = 12.5.sp)
+
+            Column(
+              modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.surface2.copy(alpha = 0.6f))
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+              Text("Expenses", color = colors.muted, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+              Spacer(modifier = Modifier.height(2.dp))
               Text(
-                ArabicNumberHelper.fmt(expTotal),
+                text = ArabicNumberHelper.fmt(expTotal),
                 color = colors.expense,
                 fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
+                fontSize = 15.sp,
+                maxLines = 1
               )
             }
-            Column {
-              Text("Share of income spent", color = colors.muted, fontSize = 12.5.sp)
+
+            Column(
+              modifier = Modifier
+                .weight(0.9f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.surface2.copy(alpha = 0.6f))
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+              Text("Spent", color = colors.muted, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+              Spacer(modifier = Modifier.height(2.dp))
               Text(
-                if (incTotal > 0) "${pctSpent.toInt()}%" else "–",
-                color = colors.ink,
+                text = if (incTotal > 0) "${pctSpent.toInt()}%" else "–",
+                color = if (pctSpent > 100) colors.expense else colors.ink,
                 fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
+                fontSize = 15.sp,
+                maxLines = 1
               )
             }
           }

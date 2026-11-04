@@ -85,18 +85,19 @@ fun LoansScreen(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(bottom = 14.dp),
+          .padding(bottom = 10.dp, top = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom
+        verticalAlignment = Alignment.CenterVertically
       ) {
         Column {
-          Text("Total amount", color = colors.muted, fontSize = 13.sp)
+          Text("Total loan balance", color = colors.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+          Spacer(modifier = Modifier.height(1.dp))
           Text(
             ArabicNumberHelper.fmt(totalAmount),
-            fontSize = 38.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
             color = colors.ink,
-            lineHeight = 42.sp
+            lineHeight = 30.sp
           )
         }
 
@@ -107,11 +108,14 @@ fun LoansScreen(
             contentColor = colors.headInk
           ),
           shape = RoundedCornerShape(10.dp),
-          modifier = Modifier.testTag("add_loan_btn")
+          modifier = Modifier
+            .height(38.dp)
+            .testTag("add_loan_btn"),
+          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp)
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
           Spacer(modifier = Modifier.width(4.dp))
-          Text("Add loan", fontWeight = FontWeight.SemiBold)
+          Text("Add loan", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
       }
     }
@@ -122,15 +126,15 @@ fun LoansScreen(
           modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp),
-          shape = RoundedCornerShape(14.dp),
+          shape = RoundedCornerShape(12.dp),
           colors = CardDefaults.cardColors(containerColor = colors.surface),
           border = CardDefaults.outlinedCardBorder()
         ) {
           Text(
             "No loans yet. Add one here, or tick “Show in Loans” on any expense.",
             color = colors.muted,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(20.dp)
+            fontSize = 13.5.sp,
+            modifier = Modifier.padding(18.dp)
           )
         }
       }
@@ -151,87 +155,105 @@ fun LoansScreen(
         Card(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp),
-          shape = RoundedCornerShape(14.dp),
+            .padding(vertical = 3.dp),
+          shape = RoundedCornerShape(12.dp),
           colors = CardDefaults.cardColors(containerColor = colors.surface),
           border = CardDefaults.outlinedCardBorder()
         ) {
           Column {
-            // Loan Header Clickable
+            // Sleek & Compact Loan Header
             Column(
               modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onToggleExpanded(row.id) }
-                .padding(16.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
               Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  modifier = Modifier.weight(1f, fill = false)
+                ) {
                   Icon(
                     Icons.Default.ChevronRight,
                     contentDescription = null,
                     tint = colors.muted,
                     modifier = Modifier
-                      .size(20.dp)
+                      .size(17.dp)
                       .rotate(rotationAngle)
                   )
-                  Spacer(modifier = Modifier.width(4.dp))
+                  Spacer(modifier = Modifier.width(5.dp))
                   Text(
                     text = row.name,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = colors.ink
+                    fontSize = 14.5.sp,
+                    color = colors.ink,
+                    maxLines = 1
                   )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Text(
-                  text = ArabicNumberHelper.fmt(info.remaining),
+                  text = "${ArabicNumberHelper.fmt(info.remaining)} EGP",
                   fontWeight = FontWeight.Bold,
-                  fontSize = 18.sp,
+                  fontSize = 14.5.sp,
                   color = colors.ink
                 )
               }
 
-              Spacer(modifier = Modifier.height(4.dp))
+              Spacer(modifier = Modifier.height(2.dp))
 
               Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
               ) {
-                Text(sub, color = colors.muted, fontSize = 12.5.sp)
-                Text("left of ${ArabicNumberHelper.fmt(info.total)}", color = colors.muted, fontSize = 12.5.sp)
+                Text(
+                  text = sub,
+                  color = colors.muted,
+                  fontSize = 11.5.sp,
+                  maxLines = 1,
+                  modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                  text = "${pct.toInt()}% paid • left of ${ArabicNumberHelper.fmt(info.total)}",
+                  color = colors.muted,
+                  fontSize = 11.sp
+                )
               }
 
-              Spacer(modifier = Modifier.height(10.dp))
+              Spacer(modifier = Modifier.height(6.dp))
 
-              // Progress bar
+              // Sleek, slim Progress bar
               Box(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .height(8.dp)
+                  .height(4.5.dp)
                   .clip(CircleShape)
                   .background(colors.surface2)
               ) {
                 Box(
                   modifier = Modifier
                     .fillMaxWidth((pct / 100f).toFloat())
-                    .height(8.dp)
+                    .height(4.5.dp)
                     .clip(CircleShape)
                     .background(colors.income)
                 )
               }
             }
 
-            // Loan Body Accordion
+            // Compact Loan Body Accordion
             AnimatedVisibility(visible = isOpen) {
               Column(
                 modifier = Modifier
                   .fillMaxWidth()
                   .background(colors.surface2.copy(alpha = 0.5f))
-                  .padding(horizontal = 16.dp, vertical = 10.dp)
+                  .padding(horizontal = 14.dp, vertical = 8.dp)
               ) {
                 val paidMap = row.getPaid()
                 val currentM = ScheduleEngine.currentMonth()
@@ -244,20 +266,21 @@ fun LoansScreen(
                     modifier = Modifier
                       .fillMaxWidth()
                       .clickable { onTogglePaid(row.id, m, !isPaid) }
-                      .padding(vertical = 4.dp),
+                      .padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                   ) {
                     Checkbox(
                       checked = isPaid,
                       onCheckedChange = { onTogglePaid(row.id, m, it) },
-                      colors = CheckboxDefaults.colors(checkedColor = colors.income)
+                      colors = CheckboxDefaults.colors(checkedColor = colors.income),
+                      modifier = Modifier.size(34.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     Text(
                       text = "${ScheduleEngine.mLabel(m)}${if (m == currentM) " (this month)" else ""}",
-                      fontSize = 14.sp,
+                      fontSize = 13.sp,
                       color = if (isPaid) colors.muted else colors.ink,
                       textDecoration = if (isPaid) TextDecoration.LineThrough else TextDecoration.None,
                       modifier = Modifier.weight(1f)
@@ -266,14 +289,14 @@ fun LoansScreen(
                     Text(
                       text = ArabicNumberHelper.fmt(monthAmt),
                       fontWeight = FontWeight.SemiBold,
-                      fontSize = 14.sp,
+                      fontSize = 13.sp,
                       color = if (isPaid) colors.muted else colors.ink,
                       textDecoration = if (isPaid) TextDecoration.LineThrough else TextDecoration.None
                     )
                   }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                   modifier = Modifier.fillMaxWidth(),
@@ -281,17 +304,19 @@ fun LoansScreen(
                   verticalAlignment = Alignment.CenterVertically
                 ) {
                   Text(
-                    text = "Paid so far: ${ArabicNumberHelper.fmt(info.paid)}",
+                    text = "Paid so far: ${ArabicNumberHelper.fmt(info.paid)} EGP",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.5.sp,
+                    fontSize = 12.5.sp,
                     color = colors.ink
                   )
 
                   OutlinedButton(
                     onClick = { onEditLoan(row.id) },
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(32.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                   ) {
-                    Text("Edit loan", fontSize = 12.5.sp, color = colors.ink)
+                    Text("Edit loan", fontSize = 12.sp, color = colors.ink, fontWeight = FontWeight.SemiBold)
                   }
                 }
               }
@@ -300,27 +325,27 @@ fun LoansScreen(
         }
       }
 
-      // Total Remaining Footer Card
+      // Compact Total Remaining Footer Card
       item {
         Card(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 14.dp, bottom = 8.dp),
-          shape = RoundedCornerShape(14.dp),
+            .padding(top = 10.dp, bottom = 4.dp),
+          shape = RoundedCornerShape(12.dp),
           colors = CardDefaults.cardColors(containerColor = colors.head)
         ) {
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(16.dp),
+              .padding(horizontal = 14.dp, vertical = 11.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Text("Total remaining", color = colors.headInk, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text("Total remaining debt", color = colors.headInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(
-              ArabicNumberHelper.fmt(totalRemaining),
+              "${ArabicNumberHelper.fmt(totalRemaining)} EGP",
               color = colors.headInk,
-              fontSize = 26.sp,
+              fontSize = 20.sp,
               fontWeight = FontWeight.Bold
             )
           }

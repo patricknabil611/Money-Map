@@ -12,15 +12,20 @@ import com.example.data.model.BudgetRow
 import com.example.data.model.PhotoReceipt
 import com.example.data.model.Sha2aItem
 import com.example.data.repository.BudgetRepository
+import com.example.data.user.UserManager
+import com.example.data.user.UserProfile
 import com.example.util.ExportConfig
 import com.example.util.ImageExporter
 import com.example.util.ScheduleEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -28,6 +33,7 @@ import java.util.UUID
 
 enum class AppTab(val title: String) {
   HOME("Home"),
+  ALL("All"),
   MONTH("Month"),
   PROJECTS("Projects"),
   LOANS("Loans")
@@ -77,14 +83,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   private val _showSettings = MutableStateFlow(false)
   val showSettings = _showSettings.asStateFlow()
 
+  private val _showVoiceDialog = MutableStateFlow(false)
+  val showVoiceDialog = _showVoiceDialog.asStateFlow()
+
   private val _toastMessage = MutableStateFlow<String?>(null)
   val toastMessage = _toastMessage.asStateFlow()
 
-  // App Lock state
-  private val _isAppUnlocked = MutableStateFlow(
-    !com.example.security.BiometricAuthManager.isFingerprintAssigned(application) &&
-      !com.example.security.BiometricAuthManager.isFingerprintEnabled(application)
-  )
+  // User Profile state
+  private val _currentProfile = MutableStateFlow<com.example.data.user.UserProfile?>(null)
+  val currentProfile = _currentProfile.asStateFlow()
+
+  private val _showUserSelection = MutableStateFlow(true)
+  val showUserSelection = _showUserSelection.asStateFlow()
+
+  // App Lock state (Fingerprint removed, profile selection is the gateway)
+  private val _isAppUnlocked = MutableStateFlow(true)
   val isAppUnlocked = _isAppUnlocked.asStateFlow()
 
   fun unlockApp() {
@@ -92,36 +105,231 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   }
 
   fun lockApp() {
-    _isAppUnlocked.value = false
+    _showUserSelection.value = true
+  }
+
+  fun openUserSelection() {
+    _showUserSelection.value = true
+  }
+
+  fun closeUserSelection() {
+    if (_currentProfile.value != null) {
+      _showUserSelection.value = false
+    }
+  }
+
+  fun selectUserProfile(profile: com.example.data.user.UserProfile) {
+    viewModelScope.launch {
+      val prev = _currentProfile.value
+      val app = getApplication<Application>()
+
+      // 1. If selecting the profile that is ALREADY the active user:
+      // The Room database ALREADY contains this user's live, up-to-date data!
+      // Do NOT reset or overwrite Room DB.
+      if (prev != null && prev.id == profile.id) {
+        UserManager.setSelectedUserId(app, profile.id)
+        _currentProfile.value = profile
+        _showUserSelection.value = false
+        showToast("Profile: ${profile.name}")
+        // Ensure snapshot file is synced with live DB without wiping anything
+        try {
+          val currentJson = repository.exportToJson()
+          UserManager.saveUserSnapshot(app, profile.id, currentJson)
+        } catch (_: Exception) {}
+        return@launch
+      }
+
+      // 2. Switching away from another profile: save previous user's live data first
+      if (prev != null && prev.id != profile.id) {
+        try {
+          val prevJson = repository.exportToJson()
+          UserManager.saveUserSnapshot(app, prev.id, prevJson)
+        } catch (_: Exception) {}
+      }
+
+      // 3. Load target profile's data into Room DB
+      val existingSnapshot = UserManager.loadUserSnapshot(app, profile.id)
+      if (existingSnapshot != null) {
+        repository.importFromJson(existingSnapshot)
+      } else if (profile.isPatrick) {
+        // If Patrick has no snapshot saved yet:
+        // Check if Room DB already has rows (from initial seed or previous work)
+        val existingRows = repository.budgetRows.first()
+        if (existingRows.isEmpty()) {
+          repository.resetToDefault()
+        }
+        val currentJson = repository.exportToJson()
+        UserManager.saveUserSnapshot(app, profile.id, currentJson)
+      } else {
+        val dummyJson = UserManager.getDummyUserDataJson()
+        repository.importFromJson(dummyJson)
+        UserManager.saveUserSnapshot(app, profile.id, dummyJson)
+      }
+
+      UserManager.setSelectedUserId(app, profile.id)
+      _currentProfile.value = profile
+      _showUserSelection.value = false
+      showToast("Profile: ${profile.name}")
+    }
+  }
+
+  val syncState = com.example.data.drive.GoogleDriveSyncManager.syncState
+  val realtimeSyncStatus = com.example.data.sync.FirestoreRealtimeSyncManager.syncStatus
+
+  fun openVoiceDialog() {
+    _showVoiceDialog.value = true
+  }
+
+  fun closeVoiceDialog() {
+    _showVoiceDialog.value = false
+  }
+
+  fun handleVoiceTask(task: com.example.util.VoiceParsedTask, setReminder: Boolean) {
+    viewModelScope.launch {
+      val isIncome = task.kind == "in"
+      val isLoan = task.kind == "loan"
+      val kind = if (isIncome) "in" else "out"
+      val currentM = ScheduleEngine.currentMonth()
+      val st = settings.value.startMonth
+      val startMonth = if (ScheduleEngine.mIdx(currentM) >= ScheduleEngine.mIdx(st)) currentM else st
+
+      val newRow = BudgetRow(
+        id = "row-${UUID.randomUUID().toString().substring(0, 8)}",
+        name = task.title,
+        kind = kind,
+        amount = task.amount,
+        day = task.day,
+        start = startMonth,
+        every = 1,
+        months = task.months,
+        total = if (task.months != null && task.amount > 0) task.amount * task.months else null,
+        stepsJson = "[]",
+        overridesJson = "{}",
+        isLoan = isLoan,
+        paidJson = "{}",
+        sortOrder = (budgetRows.value.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0) + 10
+      )
+
+      repository.saveRow(newRow)
+      persistCurrentProfileSnapshot()
+
+      if (setReminder) {
+        val app = getApplication<Application>()
+        val dayStr = if (task.day != null) "due on day ${task.day}" else "scheduled"
+        com.example.reminder.ReminderManager.showNotification(
+          context = app,
+          notificationId = (100..9999).random(),
+          title = "New ${if (isIncome) "Income" else if (isLoan) "Loan" else "Expense"} Added: ${task.title}",
+          message = "${task.title} for ${task.amount} EGP is $dayStr. Cloud-synced across devices.",
+          isTask = true
+        )
+      }
+
+      showToast("Voice entry added: ${task.title} (${task.amount} EGP)")
+    }
+  }
+
+  private fun persistCurrentProfileSnapshot() {
+    viewModelScope.launch {
+      try {
+        val user = _currentProfile.value ?: return@launch
+        val json = repository.exportToJson()
+        UserManager.saveUserSnapshot(getApplication(), user.id, json)
+        // 1. Google Drive auto-sync
+        com.example.data.drive.GoogleDriveSyncManager.scheduleContinuousAutoSync(
+          context = getApplication(),
+          profile = user,
+          jsonSupplier = { json }
+        )
+        // 2. Firestore real-time cloud sync across devices
+        com.example.data.sync.FirestoreRealtimeSyncManager.pushLocalChangesRealtime(
+          context = getApplication(),
+          profile = user,
+          jsonSupplier = { json }
+        )
+      } catch (_: Exception) {}
+    }
+  }
+
+  fun syncNow() {
+    val user = _currentProfile.value ?: return
+    viewModelScope.launch {
+      val res = com.example.data.drive.GoogleDriveSyncManager.manualSyncNow(
+        context = getApplication(),
+        profile = user,
+        jsonSupplier = { repository.exportToJson() }
+      )
+      com.example.data.sync.FirestoreRealtimeSyncManager.pushLocalChangesRealtime(
+        context = getApplication(),
+        profile = user,
+        jsonSupplier = { repository.exportToJson() }
+      )
+      if (res.isSuccess) {
+        showToast("Auto-synced to Google Drive & Firestore (${user.email.ifBlank { "Google Account" }})")
+      } else {
+        showToast("Sync finished: ${res.exceptionOrNull()?.message ?: "OK"}")
+      }
+    }
+  }
+
+  fun toggleAutoSync(enabled: Boolean) {
+    val user = _currentProfile.value ?: return
+    val app = getApplication<Application>()
+    UserManager.editUser(app, user.id, user.name, user.avatarKey, user.email, enabled)
+    val updated = user.copy(autoSyncEnabled = enabled)
+    _currentProfile.value = updated
+    if (enabled) {
+      persistCurrentProfileSnapshot()
+      showToast("Cloud continuous auto-sync turned ON")
+    } else {
+      showToast("Cloud continuous auto-sync turned OFF")
+    }
+  }
+
+  fun updateUserEmail(email: String) {
+    val user = _currentProfile.value ?: return
+    val app = getApplication<Application>()
+    UserManager.editUser(app, user.id, user.name, user.avatarKey, email, user.autoSyncEnabled)
+    _currentProfile.value = user.copy(email = email)
+    persistCurrentProfileSnapshot()
   }
 
   init {
     val db = AppDatabase.getDatabase(application)
     repository = BudgetRepository(db.budgetDao(), application)
 
+    val app = application
+    val selectedId = UserManager.getSelectedUserId(app)
+    val allUsers = UserManager.getUsers(app)
+    val chosen = allUsers.find { it.id == selectedId }
+    if (chosen != null) {
+      _currentProfile.value = chosen
+    }
+    _showUserSelection.value = true
+
     budgetRows = repository.budgetRows.stateIn(
       viewModelScope,
-      SharingStarted.WhileSubscribed(5000),
+      SharingStarted.Eagerly,
       emptyList()
     )
     projects = repository.projects.stateIn(
       viewModelScope,
-      SharingStarted.WhileSubscribed(5000),
+      SharingStarted.Eagerly,
       emptyList()
     )
     sha2aItems = repository.sha2aItems.stateIn(
       viewModelScope,
-      SharingStarted.WhileSubscribed(5000),
+      SharingStarted.Eagerly,
       emptyList()
     )
     photoReceipts = repository.photoReceipts.stateIn(
       viewModelScope,
-      SharingStarted.WhileSubscribed(5000),
+      SharingStarted.Eagerly,
       emptyList()
     )
     settings = repository.settings.stateIn(
       viewModelScope,
-      SharingStarted.WhileSubscribed(5000),
+      SharingStarted.Eagerly,
       AppSettings()
     )
 
@@ -151,6 +359,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         sortOrder = (projects.value.size + 1) * 10
       )
       repository.saveProject(p)
+      persistCurrentProfileSnapshot()
       showToast("Project added.")
     }
   }
@@ -161,7 +370,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       if (_selectedProjectId.value == id) {
         _selectedProjectId.value = null
       }
+      persistCurrentProfileSnapshot()
       showToast("Project deleted.")
+    }
+  }
+
+  fun updateProject(id: String, name: String, description: String = "") {
+    viewModelScope.launch {
+      val existing = projects.value.find { it.id == id } ?: return@launch
+      val updated = existing.copy(name = name.trim(), description = description.trim())
+      repository.updateProject(updated)
+      persistCurrentProfileSnapshot()
+      showToast("Project updated.")
     }
   }
 
@@ -227,6 +447,23 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.saveRow(row)
       closeRowEditor()
+      persistCurrentProfileSnapshot()
+    }
+  }
+
+  fun insertRow(row: BudgetRow) {
+    viewModelScope.launch {
+      repository.insertRow(row)
+      closeRowEditor()
+      persistCurrentProfileSnapshot()
+    }
+  }
+
+  fun updateRow(row: BudgetRow) {
+    viewModelScope.launch {
+      repository.updateRow(row)
+      closeRowEditor()
+      persistCurrentProfileSnapshot()
     }
   }
 
@@ -234,6 +471,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.deleteRow(id)
       closeRowEditor()
+      persistCurrentProfileSnapshot()
       showToast("Row deleted.")
     }
   }
@@ -242,6 +480,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       val moved = repository.moveRow(id, direction)
       if (moved) {
+        persistCurrentProfileSnapshot()
         showToast(if (direction < 0) "Moved up." else "Moved down.")
       } else {
         showToast(if (direction < 0) "Already at the top." else "Already at the bottom.")
@@ -270,6 +509,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         rangeEnd = st.endMonth
       )
       closeCell()
+      persistCurrentProfileSnapshot()
     }
   }
 
@@ -277,12 +517,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.resetMonthOverride(rowId, month)
       closeCell()
+      persistCurrentProfileSnapshot()
     }
   }
 
   fun togglePaid(rowId: String, month: String, isPaid: Boolean) {
     viewModelScope.launch {
       repository.setRowPaidMonth(rowId, month, isPaid)
+      persistCurrentProfileSnapshot()
     }
   }
 
@@ -304,6 +546,23 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.saveSha2aItem(item)
       closeSha2aEditor()
+      persistCurrentProfileSnapshot()
+    }
+  }
+
+  fun insertSha2aItem(item: Sha2aItem) {
+    viewModelScope.launch {
+      repository.insertSha2aItem(item)
+      closeSha2aEditor()
+      persistCurrentProfileSnapshot()
+    }
+  }
+
+  fun updateSha2aItem(item: Sha2aItem) {
+    viewModelScope.launch {
+      repository.updateSha2aItem(item)
+      closeSha2aEditor()
+      persistCurrentProfileSnapshot()
     }
   }
 
@@ -311,6 +570,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.deleteSha2aItem(id)
       closeSha2aEditor()
+      persistCurrentProfileSnapshot()
       showToast("Item deleted.")
     }
   }
@@ -328,6 +588,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.updatePhotoReceiptCaption(id, caption)
       closePhoto()
+      persistCurrentProfileSnapshot()
     }
   }
 
@@ -335,6 +596,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       repository.deletePhotoReceipt(id)
       closePhoto()
+      persistCurrentProfileSnapshot()
       showToast("Photo deleted.")
     }
   }
@@ -356,6 +618,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
           }
         }
         repository.savePhotoReceipt(caption, fileName, projectId)
+        persistCurrentProfileSnapshot()
         showToast("Receipt photo added.")
       } catch (e: Exception) {
         showToast("Couldn't add photo. Try again.")
@@ -375,6 +638,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   fun updateRange(start: String, end: String) {
     viewModelScope.launch {
       repository.updateSettings(start, end)
+      persistCurrentProfileSnapshot()
       showToast("Range updated.")
     }
   }
@@ -382,15 +646,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   fun updateTheme(themeMode: String) {
     viewModelScope.launch {
       repository.updateThemeMode(themeMode)
+      persistCurrentProfileSnapshot()
     }
   }
 
   fun exportJson(): String {
-    var result = ""
-    viewModelScope.launch {
-      result = repository.exportToJson()
+    return runBlocking(Dispatchers.IO) {
+      repository.exportToJson()
     }
-    return result
   }
 
   suspend fun exportJsonSuspend(): String {
@@ -408,6 +671,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       val res = repository.importFromJson(content)
       if (res.isSuccess) {
+        persistCurrentProfileSnapshot()
         showToast("Backup imported successfully.")
         onComplete(true)
       } else {
@@ -420,6 +684,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   fun resetToDefault() {
     viewModelScope.launch {
       repository.resetToDefault()
+      persistCurrentProfileSnapshot()
       showToast("Reset to initial budget.")
       closeSettings()
     }

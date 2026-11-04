@@ -6,18 +6,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -31,9 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.BudgetRow
+import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
 import com.example.util.ScheduleEngine
@@ -76,36 +75,45 @@ fun CellEditorSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
     containerColor = colors.surface,
-    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    shape = AppShapes.Sheet
   ) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp)
-        .padding(bottom = 32.dp)
+        .padding(horizontal = 16.dp)
+        .navigationBarsPadding()
+        .padding(bottom = 24.dp)
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
             text = row.name,
-            fontSize = 22.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = colors.ink
+            color = colors.ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
           val daySuffix = if (row.day != null) ", on the ${ArabicNumberHelper.ord(row.day)}" else ""
           Text(
             text = "${ScheduleEngine.mLabel(month)}$daySuffix",
-            fontSize = 14.sp,
-            color = colors.muted
+            fontSize = 13.sp,
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
         }
-        IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_cell_sheet_btn")) {
-          Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.muted)
-        }
+        AppIconButton(
+          onClick = onDismiss,
+          icon = Icons.Default.Close,
+          contentDescription = "Close",
+          tint = colors.muted,
+          modifier = Modifier.testTag("close_cell_sheet_btn")
+        )
       }
 
       Spacer(modifier = Modifier.height(12.dp))
@@ -134,6 +142,7 @@ fun CellEditorSheet(
         },
         label = { Text("Amount for ${ScheduleEngine.mLabel(month)}") },
         placeholder = { Text("0") },
+        shape = AppShapes.Input,
         modifier = Modifier
           .fillMaxWidth()
           .testTag("cell_amount_input"),
@@ -152,8 +161,11 @@ fun CellEditorSheet(
 
       Spacer(modifier = Modifier.height(18.dp))
 
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        AppPrimaryButton(
           onClick = {
             val num = ArabicNumberHelper.parseNumber(inputVal)
             if (num == null || num < 0) {
@@ -162,18 +174,13 @@ fun CellEditorSheet(
               onSaveOnly(num)
             }
           },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = colors.head,
-            contentColor = colors.headInk
-          ),
+          text = "Save for ${ScheduleEngine.mLabel(month)} only",
           modifier = Modifier
             .fillMaxWidth()
             .testTag("save_month_only_btn")
-        ) {
-          Text("Save for ${ScheduleEngine.mLabel(month)} only", fontWeight = FontWeight.SemiBold)
-        }
+        )
 
-        OutlinedButton(
+        AppSecondaryButton(
           onClick = {
             val num = ArabicNumberHelper.parseNumber(inputVal)
             if (num == null || num < 0) {
@@ -182,32 +189,29 @@ fun CellEditorSheet(
               onSaveFrom(num)
             }
           },
+          text = "Save for ${ScheduleEngine.mLabel(month)} and after",
           modifier = Modifier
             .fillMaxWidth()
             .testTag("save_month_and_after_btn")
-        ) {
-          Text("Save for ${ScheduleEngine.mLabel(month)} and after", color = colors.ink)
-        }
+        )
 
         if (hasOverride) {
-          OutlinedButton(
+          AppSecondaryButton(
             onClick = onReset,
+            text = "Go back to the planned amount",
             modifier = Modifier
               .fillMaxWidth()
               .testTag("reset_planned_btn")
-          ) {
-            Text("Go back to the planned amount", color = colors.ink)
-          }
+          )
         }
 
-        OutlinedButton(
+        AppSecondaryButton(
           onClick = onEditWholeRow,
+          text = "Edit the whole row",
           modifier = Modifier
             .fillMaxWidth()
             .testTag("edit_whole_row_btn")
-        ) {
-          Text("Edit the whole row", color = colors.ink)
-        }
+        )
       }
     }
   }

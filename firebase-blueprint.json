@@ -1,0 +1,37 @@
+{
+  "entities": {
+    "UserProfile": {
+      "collection": "users",
+      "fields": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatarKey": { "type": "string" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    "BudgetData": {
+      "collection": "users/{userId}/budgets",
+      "fields": {
+        "userId": { "type": "string" },
+        "budgetPayload": { "type": "string" },
+        "version": { "type": "number" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    "TaskItem": {
+      "collection": "users/{userId}/tasks",
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "isCompleted": { "type": "boolean" },
+        "source": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      }
+    }
+  }
+}

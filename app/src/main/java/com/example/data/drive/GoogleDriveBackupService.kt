@@ -19,11 +19,18 @@ object GoogleDriveBackupService {
 
   private const val FILE_NAME = "money-map-backup.json"
   private const val MIME_TYPE = "application/json"
+  const val OAUTH_CLIENT_ID = com.example.BuildConfig.GOOGLE_OAUTH_CLIENT_ID
 
-  suspend fun findBackupFile(accessToken: String): String? = withContext(Dispatchers.IO) {
+  suspend fun findBackupFile(accessToken: String, useAppData: Boolean = false, profileId: String? = null): String? = withContext(Dispatchers.IO) {
     try {
-      val query = "name='$FILE_NAME' and trashed=false"
-      val url = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}&fields=files(id,name,modifiedTime)"
+      val targetName = if (profileId != null) "moneymap_sync_$profileId.json" else FILE_NAME
+      val query = if (useAppData) {
+        "name='$targetName' and 'appDataFolder' in parents and trashed=false"
+      } else {
+        "name='$targetName' and trashed=false"
+      }
+      val spacesParam = if (useAppData) "&spaces=appDataFolder" else ""
+      val url = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}$spacesParam&fields=files(id,name,modifiedTime)"
       val request = Request.Builder()
         .url(url)
         .addHeader("Authorization", "Bearer $accessToken")
@@ -44,9 +51,15 @@ object GoogleDriveBackupService {
     }
   }
 
-  suspend fun uploadBackup(accessToken: String, jsonContent: String): Result<String> = withContext(Dispatchers.IO) {
+  suspend fun uploadBackup(
+    accessToken: String,
+    jsonContent: String,
+    useAppData: Boolean = false,
+    profileId: String? = null
+  ): Result<String> = withContext(Dispatchers.IO) {
     try {
-      val existingFileId = findBackupFile(accessToken)
+      val fileName = if (profileId != null) "moneymap_sync_$profileId.json" else FILE_NAME
+      val existingFileId = findBackupFile(accessToken, useAppData, profileId)
       if (existingFileId != null) {
         // Update existing file
         val uploadUrl = "https://www.googleapis.com/upload/drive/v3/files/$existingFileId?uploadType=media"
@@ -67,7 +80,8 @@ object GoogleDriveBackupService {
       } else {
         // Create new multipart upload
         val boundary = "====MoneyMapBackupBoundary===="
-        val metadata = """{"name":"$FILE_NAME","mimeType":"$MIME_TYPE"}"""
+        val parentsClause = if (useAppData) ""","parents":["appDataFolder"]""" else ""
+        val metadata = """{"name":"$fileName","mimeType":"$MIME_TYPE"$parentsClause}"""
 
         val multipartBody = buildString {
           append("--$boundary\r\n")
@@ -99,9 +113,14 @@ object GoogleDriveBackupService {
     }
   }
 
-  suspend fun downloadBackup(accessToken: String): Result<String> = withContext(Dispatchers.IO) {
+  suspend fun downloadBackup(
+    accessToken: String,
+    useAppData: Boolean = false,
+    profileId: String? = null
+  ): Result<String> = withContext(Dispatchers.IO) {
     try {
-      val fileId = findBackupFile(accessToken) ?: return@withContext Result.failure(Exception("No backup found on Google Drive."))
+      val fileId = findBackupFile(accessToken, useAppData, profileId)
+        ?: return@withContext Result.failure(Exception("No backup found on Google Drive."))
       val url = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
       val request = Request.Builder()
         .url(url)

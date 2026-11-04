@@ -16,10 +16,11 @@ android {
     applicationId = "com.aistudio.moneymap.zqpjfl"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 25
+    versionName = "2.5.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("String", "GOOGLE_OAUTH_CLIENT_ID", "\"695616098259-m0trrupt1mfcor2v6meo2alrc1tr160b.apps.googleusercontent.com\"")
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
@@ -109,12 +110,8 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
-
-  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
-  // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.auth)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)

@@ -1,5 +1,5 @@
 {
-  "name": "Money map",
+  "name": "P Money",
   "description": "Personal budget tracker in Egyptian pounds with yearly grid, monthly slip, loan schedules, apartment costs, and backup export/import.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

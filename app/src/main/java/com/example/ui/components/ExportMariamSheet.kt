@@ -13,24 +13,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -47,9 +40,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.BudgetRow
+import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
 import com.example.util.ExportConfig
@@ -92,13 +87,14 @@ fun ExportMariamSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
     containerColor = colors.surface,
-    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    shape = AppShapes.Sheet
   ) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp)
-        .padding(bottom = 32.dp)
+        .padding(horizontal = 16.dp)
+        .padding(bottom = 24.dp)
+        .navigationBarsPadding()
         .verticalScroll(rememberScrollState())
     ) {
       Row(
@@ -106,22 +102,30 @@ fun ExportMariamSheet(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
             text = "Export to Mariam",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            color = colors.ink
+            color = colors.ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
           Text(
             text = "Pick the months and what to share. You’ll get an image titled “To Mariam”.",
             fontSize = 13.sp,
-            color = colors.muted
+            color = colors.muted,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
           )
         }
-        IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_export_mariam_btn")) {
-          Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.muted)
-        }
+        AppIconButton(
+          onClick = onDismiss,
+          icon = Icons.Default.Close,
+          contentDescription = "Close",
+          tint = colors.muted,
+          modifier = Modifier.testTag("close_export_mariam_btn")
+        )
       }
 
       Spacer(modifier = Modifier.height(14.dp))
@@ -148,9 +152,9 @@ fun ExportMariamSheet(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .border(1.dp, colors.line, RoundedCornerShape(12.dp))
-          .padding(12.dp)
+          .clip(AppShapes.Card)
+          .border(1.dp, colors.line, AppShapes.Card)
+          .padding(14.dp)
       ) {
         Text("Totals", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp)
         Spacer(modifier = Modifier.height(6.dp))
@@ -187,14 +191,15 @@ fun ExportMariamSheet(
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(AppShapes.Small)
             .background(colors.surface2)
-            .padding(3.dp)
+            .padding(3.dp),
+          verticalAlignment = Alignment.CenterVertically
         ) {
           Box(
             modifier = Modifier
               .weight(1f)
-              .clip(RoundedCornerShape(8.dp))
+              .clip(AppShapes.Small)
               .background(if (totalsAll) colors.surface else Color.Transparent)
               .clickable { totalsAll = true; generatedBitmap = null }
               .padding(vertical = 8.dp),
@@ -205,7 +210,7 @@ fun ExportMariamSheet(
           Box(
             modifier = Modifier
               .weight(1f)
-              .clip(RoundedCornerShape(8.dp))
+              .clip(AppShapes.Small)
               .background(if (!totalsAll) colors.surface else Color.Transparent)
               .clickable { totalsAll = false; generatedBitmap = null }
               .padding(vertical = 8.dp),
@@ -222,33 +227,38 @@ fun ExportMariamSheet(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .border(1.dp, colors.line, RoundedCornerShape(12.dp))
-          .padding(12.dp)
+          .clip(AppShapes.Card)
+          .border(1.dp, colors.line, AppShapes.Card)
+          .padding(14.dp)
       ) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text("Money in", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp)
-          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(
+          Text("Money in", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            AppSecondaryButton(
+              text = "Select all",
               onClick = {
                 val newSet = selectedRows.toMutableSet()
                 inRows.forEach { newSet.add(it.id) }
                 selectedRows = newSet
                 generatedBitmap = null
               }
-            ) { Text("Select all", fontSize = 12.sp) }
-            OutlinedButton(
+            )
+            AppSecondaryButton(
+              text = "Clear",
               onClick = {
                 val newSet = selectedRows.toMutableSet()
                 inRows.forEach { newSet.remove(it.id) }
                 selectedRows = newSet
                 generatedBitmap = null
               }
-            ) { Text("Clear", fontSize = 12.sp) }
+            )
           }
         }
 
@@ -291,33 +301,38 @@ fun ExportMariamSheet(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .border(1.dp, colors.line, RoundedCornerShape(12.dp))
-          .padding(12.dp)
+          .clip(AppShapes.Card)
+          .border(1.dp, colors.line, AppShapes.Card)
+          .padding(14.dp)
       ) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text("Money out", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp)
-          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(
+          Text("Money out", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            AppSecondaryButton(
+              text = "Select all",
               onClick = {
                 val newSet = selectedRows.toMutableSet()
                 outRows.forEach { newSet.add(it.id) }
                 selectedRows = newSet
                 generatedBitmap = null
               }
-            ) { Text("Select all", fontSize = 12.sp) }
-            OutlinedButton(
+            )
+            AppSecondaryButton(
+              text = "Clear",
               onClick = {
                 val newSet = selectedRows.toMutableSet()
                 outRows.forEach { newSet.remove(it.id) }
                 selectedRows = newSet
                 generatedBitmap = null
               }
-            ) { Text("Clear", fontSize = 12.sp) }
+            )
           }
         }
 
@@ -360,9 +375,9 @@ fun ExportMariamSheet(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .border(1.dp, colors.line, RoundedCornerShape(12.dp))
-          .padding(12.dp)
+          .clip(AppShapes.Card)
+          .border(1.dp, colors.line, AppShapes.Card)
+          .padding(14.dp)
       ) {
         Text("Columns", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -393,22 +408,23 @@ fun ExportMariamSheet(
         )
       }
 
-      Spacer(modifier = Modifier.height(18.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
       // Create Image button
-      Button(
+      AppPrimaryButton(
+        text = if (isGenerating) "Creating the image…" else "Create image",
         onClick = {
           if (ScheduleEngine.mIdx(toMonth) < ScheduleEngine.mIdx(fromMonth)) {
             errorMsg = "“To” must be the same month as “From” or later."
-            return@Button
+            return@AppPrimaryButton
           }
           if (ScheduleEngine.mIdx(toMonth) - ScheduleEngine.mIdx(fromMonth) > 35) {
             errorMsg = "Pick up to 36 months."
-            return@Button
+            return@AppPrimaryButton
           }
           if (selectedRows.isEmpty() && !incChecked && !leftChecked && !expChecked) {
             errorMsg = "Choose at least one total or row to share."
-            return@Button
+            return@AppPrimaryButton
           }
           errorMsg = null
           isGenerating = true
@@ -428,16 +444,10 @@ fun ExportMariamSheet(
           generatedBitmap = bmp
           isGenerating = false
         },
-        colors = ButtonDefaults.buttonColors(
-          containerColor = colors.head,
-          contentColor = colors.headInk
-        ),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("create_mariam_image_btn")
-      ) {
-        Text(if (isGenerating) "Creating the image…" else "Create image", fontWeight = FontWeight.SemiBold)
-      }
+      )
 
       // Generated Image Preview & Share
       generatedBitmap?.let { bmp ->
@@ -454,8 +464,8 @@ fun ExportMariamSheet(
           modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 340.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, colors.line, RoundedCornerShape(12.dp))
+            .clip(AppShapes.Card)
+            .border(1.dp, colors.line, AppShapes.Card)
             .background(colors.surface2)
         ) {
           Image(
@@ -466,25 +476,21 @@ fun ExportMariamSheet(
           )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        AppPrimaryButton(
+          text = "Share image with Mariam",
+          icon = Icons.Default.Share,
+          containerColor = colors.income,
+          contentColor = Color.White,
           onClick = {
             val uri = ImageExporter.saveBitmapAndGetUri(context, bmp)
             ImageExporter.shareImage(context, uri)
           },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = colors.income,
-            contentColor = Color.White
-          ),
           modifier = Modifier
             .fillMaxWidth()
             .testTag("share_mariam_image_btn")
-        ) {
-          Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text("Share image with Mariam", fontWeight = FontWeight.Bold)
-        }
+        )
       }
     }
   }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,10 +18,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.ui.components.AppPrimaryButton
+import com.example.ui.components.AppSecondaryButton
+import com.example.ui.components.AppIconButton
+import com.example.ui.theme.AppShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
@@ -136,13 +144,14 @@ fun RowEditorSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
     containerColor = colors.surface,
-    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    shape = AppShapes.Sheet
   ) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp)
-        .padding(bottom = 32.dp)
+        .padding(horizontal = 16.dp)
+        .navigationBarsPadding()
+        .padding(bottom = 24.dp)
         .verticalScroll(rememberScrollState())
     ) {
       // Header
@@ -158,13 +167,20 @@ fun RowEditorSheet(
         }
         Text(
           text = title,
-          fontSize = 22.dp.value.sp,
+          fontSize = 20.sp,
           fontWeight = FontWeight.Bold,
-          color = colors.ink
+          color = colors.ink,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_sheet_btn")) {
-          Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.muted)
-        }
+        AppIconButton(
+          onClick = onDismiss,
+          icon = Icons.Default.Close,
+          contentDescription = "Close",
+          tint = colors.muted,
+          modifier = Modifier.testTag("close_sheet_btn")
+        )
       }
 
       Spacer(modifier = Modifier.height(14.dp))
@@ -375,16 +391,14 @@ fun RowEditorSheet(
           }
         }
 
-        OutlinedButton(
+        AppSecondaryButton(
           onClick = {
             steps = steps + Step(from = ScheduleEngine.currentMonth(), amount = ArabicNumberHelper.parseNumber(amountStr) ?: 0.0)
           },
+          text = "Add a change",
+          icon = Icons.Default.Add,
           modifier = Modifier.padding(top = 4.dp)
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("Add a change")
-        }
+        )
       }
 
       Spacer(modifier = Modifier.height(12.dp))
@@ -394,7 +408,7 @@ fun RowEditorSheet(
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(AppShapes.Small)
             .clickable { isLoan = !isLoan }
             .padding(vertical = 4.dp),
           verticalAlignment = Alignment.CenterVertically
@@ -421,79 +435,77 @@ fun RowEditorSheet(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Action buttons
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        if (!isNew) {
-          Button(
-            onClick = {
-              if (deleteArmed) {
-                onDelete(row.id)
-              } else {
-                deleteArmed = true
-              }
-            },
-            colors = ButtonDefaults.buttonColors(
-              containerColor = if (deleteArmed) colors.expense else Color.Transparent,
-              contentColor = if (deleteArmed) Color.White else colors.expense
-            ),
-            border = if (!deleteArmed) ButtonDefaults.outlinedButtonBorder else null,
-            modifier = Modifier.testTag("delete_row_btn")
+      // Reordering row (if editing existing row)
+      if (!isNew) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.Medium)
+            .background(colors.surface2.copy(alpha = 0.6f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "Reorder position in list",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.muted,
+            modifier = Modifier.weight(1f)
+          )
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
           ) {
-            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(if (deleteArmed) "Tap again" else "Delete")
-          }
+            AppSecondaryButton(
+              onClick = { onMoveUp(row.id) },
+              text = "Up",
+              icon = Icons.Default.ArrowUpward,
+              modifier = Modifier.testTag("move_up_btn")
+            )
 
-          IconButton(
-            onClick = { onMoveUp(row.id) },
-            modifier = Modifier.testTag("move_up_btn")
-          ) {
-            Icon(Icons.Default.ArrowUpward, contentDescription = "Move up", tint = colors.muted)
-          }
-
-          IconButton(
-            onClick = { onMoveDown(row.id) },
-            modifier = Modifier.testTag("move_down_btn")
-          ) {
-            Icon(Icons.Default.ArrowDownward, contentDescription = "Move down", tint = colors.muted)
+            AppSecondaryButton(
+              onClick = { onMoveDown(row.id) },
+              text = "Down",
+              icon = Icons.Default.ArrowDownward,
+              modifier = Modifier.testTag("move_down_btn")
+            )
           }
         }
+        Spacer(modifier = Modifier.height(14.dp))
+      }
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(
+      // Enhanced Action buttons: "Save changes" and "Delete"
+      if (isNew) {
+        AppPrimaryButton(
           onClick = {
             if (name.isBlank()) {
               errorMessage = "Give this row a name."
-              return@Button
+              return@AppPrimaryButton
             }
             val a = ArabicNumberHelper.parseNumber(amountStr)
             if (a == null || a < 0) {
               errorMessage = "Enter the amount for each payment."
-              return@Button
+              return@AppPrimaryButton
             }
             val d = ArabicNumberHelper.parseInt(dayStr)
             if (d != null && (d < 1 || d > 31)) {
               errorMessage = "Day of month should be between 1 and 31."
-              return@Button
+              return@AppPrimaryButton
             }
             val m = ArabicNumberHelper.parseInt(monthsStr)
             if (m != null && m < 1) {
               errorMessage = "Number of payments should be a positive number, or leave empty for ongoing."
-              return@Button
+              return@AppPrimaryButton
             }
             val t = ArabicNumberHelper.parseNumber(totalStr)
             if (t != null && t < 0) {
               errorMessage = "Total should be a valid number, or leave empty."
-              return@Button
+              return@AppPrimaryButton
             }
             if (isLoan && m == null && t == null) {
               errorMessage = "A loan needs a total or a number of payments."
-              return@Button
+              return@AppPrimaryButton
             }
 
             val out = tempRow.copy(
@@ -510,13 +522,93 @@ fun RowEditorSheet(
             )
             onSave(out)
           },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = colors.head,
-            contentColor = colors.headInk
-          ),
-          modifier = Modifier.testTag("save_row_btn")
+          text = if (isLoan) "Add Loan" else if (kind == "in") "Add Income" else "Add Expense",
+          icon = Icons.Default.Add,
+          containerColor = if (kind == "in") colors.income else colors.head,
+          contentColor = if (kind == "in") Color.White else colors.headInk,
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("save_row_btn")
+        )
+      } else {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          Text(if (isNew) "Add" else "Save changes", fontWeight = FontWeight.SemiBold)
+          // Secondary on start side (Delete)
+          AppSecondaryButton(
+            onClick = {
+              if (deleteArmed) {
+                onDelete(row.id)
+              } else {
+                deleteArmed = true
+              }
+            },
+            text = if (deleteArmed) "Confirm delete" else "Delete",
+            icon = Icons.Default.Delete,
+            contentColor = colors.expense,
+            borderColor = colors.expense,
+            containerColor = if (deleteArmed) colors.expense.copy(alpha = 0.15f) else Color.Transparent,
+            modifier = Modifier
+              .weight(1f)
+              .testTag("delete_row_btn")
+          )
+
+          // Primary on end side (Save)
+          AppPrimaryButton(
+            onClick = {
+              if (name.isBlank()) {
+                errorMessage = "Give this row a name."
+                return@AppPrimaryButton
+              }
+              val a = ArabicNumberHelper.parseNumber(amountStr)
+              if (a == null || a < 0) {
+                errorMessage = "Enter the amount for each payment."
+                return@AppPrimaryButton
+              }
+              val d = ArabicNumberHelper.parseInt(dayStr)
+              if (d != null && (d < 1 || d > 31)) {
+                errorMessage = "Day of month should be between 1 and 31."
+                return@AppPrimaryButton
+              }
+              val m = ArabicNumberHelper.parseInt(monthsStr)
+              if (m != null && m < 1) {
+                errorMessage = "Number of payments should be a positive number, or leave empty for ongoing."
+                return@AppPrimaryButton
+              }
+              val t = ArabicNumberHelper.parseNumber(totalStr)
+              if (t != null && t < 0) {
+                errorMessage = "Total should be a valid number, or leave empty."
+                return@AppPrimaryButton
+              }
+              if (isLoan && m == null && t == null) {
+                errorMessage = "A loan needs a total or a number of payments."
+                return@AppPrimaryButton
+              }
+
+              val out = tempRow.copy(
+                name = name.trim(),
+                kind = kind,
+                amount = a,
+                day = d,
+                start = startMonth,
+                every = every,
+                months = m,
+                total = t,
+                isLoan = if (kind == "in") false else isLoan,
+                stepsJson = BudgetRow.stepsToJson(steps)
+              )
+              onSave(out)
+            },
+            text = "Save",
+            icon = Icons.Default.Check,
+            containerColor = colors.head,
+            contentColor = colors.headInk,
+            modifier = Modifier
+              .weight(1f)
+              .testTag("save_row_btn")
+          )
         }
       }
     }

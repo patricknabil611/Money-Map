@@ -143,7 +143,7 @@ fun BiometricLockScreen(
       onSuccess = {
         isAssigned = true
         isEnabled = true
-        statusMessage = "Fingerprint successfully bound to Money Map!"
+        statusMessage = "Fingerprint successfully bound to P Money!"
         isError = false
         // Automatically unlock once assigned
         onUnlocked()
@@ -188,7 +188,7 @@ fun BiometricLockScreen(
       ) {
         Image(
           painter = painterResource(id = R.drawable.ic_launcher_fg),
-          contentDescription = "Money Map Logo",
+          contentDescription = "P Money Logo",
           modifier = Modifier.size(76.dp)
         )
       }
@@ -196,7 +196,7 @@ fun BiometricLockScreen(
       Spacer(modifier = Modifier.height(16.dp))
 
       Text(
-        text = "Money Map",
+        text = "P Money",
         fontSize = 26.sp,
         fontWeight = FontWeight.Bold,
         color = colors.ink
@@ -441,7 +441,7 @@ fun BiometricLockScreen(
   if (showPinDialog) {
     PinEntryDialog(
       title = "Enter Backup PIN",
-      subtitle = "Unlock Money Map with your 4-digit PIN",
+      subtitle = "Unlock P Money with your 4-digit PIN",
       onDismiss = { showPinDialog = false },
       onSubmit = { enteredPin ->
         if (BiometricAuthManager.verifyBackupPin(context, enteredPin)) {

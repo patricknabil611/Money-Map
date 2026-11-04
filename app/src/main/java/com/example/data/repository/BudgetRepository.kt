@@ -49,16 +49,44 @@ class BudgetRepository(
     }
   }
 
+  // --- Projects CRUD ---
   suspend fun saveProject(project: com.example.data.model.ProjectEntity) = withContext(Dispatchers.IO) {
+    val existing = dao.getProjectById(project.id)
+    if (existing != null) {
+      dao.updateProject(project)
+    } else {
+      dao.insertProject(project)
+    }
+  }
+
+  suspend fun insertProject(project: com.example.data.model.ProjectEntity) = withContext(Dispatchers.IO) {
     dao.insertProject(project)
+  }
+
+  suspend fun updateProject(project: com.example.data.model.ProjectEntity) = withContext(Dispatchers.IO) {
+    dao.updateProject(project)
   }
 
   suspend fun deleteProject(id: String) = withContext(Dispatchers.IO) {
     dao.deleteProject(id)
   }
 
+  // --- Budget Rows CRUD ---
   suspend fun saveRow(row: BudgetRow) = withContext(Dispatchers.IO) {
+    val existing = dao.getBudgetRowById(row.id)
+    if (existing != null) {
+      dao.updateBudgetRow(row)
+    } else {
+      dao.insertBudgetRow(row)
+    }
+  }
+
+  suspend fun insertRow(row: BudgetRow) = withContext(Dispatchers.IO) {
     dao.insertBudgetRow(row)
+  }
+
+  suspend fun updateRow(row: BudgetRow) = withContext(Dispatchers.IO) {
+    dao.updateBudgetRow(row)
   }
 
   suspend fun deleteRow(id: String) = withContext(Dispatchers.IO) {
@@ -84,7 +112,7 @@ class BudgetRepository(
     groupRows.forEachIndexed { idx, item ->
       val newOrder = (idx + 1) * 10
       if (item.sortOrder != newOrder) {
-        dao.insertBudgetRow(item.copy(sortOrder = newOrder))
+        dao.updateBudgetRow(item.copy(sortOrder = newOrder))
       }
     }
     true
@@ -98,7 +126,7 @@ class BudgetRepository(
     } else {
       paid.remove(month)
     }
-    dao.insertBudgetRow(row.copy(paidJson = BudgetRow.paidToJson(paid)))
+    dao.updateBudgetRow(row.copy(paidJson = BudgetRow.paidToJson(paid)))
   }
 
   suspend fun updateSingleMonthOverride(
@@ -120,7 +148,7 @@ class BudgetRepository(
       } else {
         ov[month] = amount
       }
-      dao.insertBudgetRow(row.copy(overridesJson = BudgetRow.overridesToJson(ov)))
+      dao.updateBudgetRow(row.copy(overridesJson = BudgetRow.overridesToJson(ov)))
     } else {
       // Save for month and after
       ov.remove(month)
@@ -129,7 +157,7 @@ class BudgetRepository(
 
       if (monthIdx <= startIdx) {
         val remainingSteps = steps.filter { ScheduleEngine.mIdx(it.from) > monthIdx }
-        dao.insertBudgetRow(
+        dao.updateBudgetRow(
           row.copy(
             amount = amount,
             stepsJson = BudgetRow.stepsToJson(remainingSteps),
@@ -139,7 +167,7 @@ class BudgetRepository(
       } else {
         val remainingSteps = steps.filter { ScheduleEngine.mIdx(it.from) < monthIdx }.toMutableList()
         remainingSteps.add(com.example.data.model.Step(from = month, amount = amount))
-        dao.insertBudgetRow(
+        dao.updateBudgetRow(
           row.copy(
             stepsJson = BudgetRow.stepsToJson(remainingSteps),
             overridesJson = BudgetRow.overridesToJson(ov)
@@ -153,17 +181,32 @@ class BudgetRepository(
     val row = dao.getBudgetRowById(id) ?: return@withContext
     val ov = row.getOverrides().toMutableMap()
     ov.remove(month)
-    dao.insertBudgetRow(row.copy(overridesJson = BudgetRow.overridesToJson(ov)))
+    dao.updateBudgetRow(row.copy(overridesJson = BudgetRow.overridesToJson(ov)))
   }
 
+  // --- Sha2a Items CRUD ---
   suspend fun saveSha2aItem(item: Sha2aItem) = withContext(Dispatchers.IO) {
+    val existing = dao.getSha2aItemById(item.id)
+    if (existing != null) {
+      dao.updateSha2aItem(item)
+    } else {
+      dao.insertSha2aItem(item)
+    }
+  }
+
+  suspend fun insertSha2aItem(item: Sha2aItem) = withContext(Dispatchers.IO) {
     dao.insertSha2aItem(item)
+  }
+
+  suspend fun updateSha2aItem(item: Sha2aItem) = withContext(Dispatchers.IO) {
+    dao.updateSha2aItem(item)
   }
 
   suspend fun deleteSha2aItem(id: String) = withContext(Dispatchers.IO) {
     dao.deleteSha2aItem(id)
   }
 
+  // --- Photo Receipts CRUD ---
   suspend fun savePhotoReceipt(caption: String, fileName: String, projectId: String = "sha2a") = withContext(Dispatchers.IO) {
     val photo = PhotoReceipt(
       id = "photo-${System.currentTimeMillis()}-${(1000..9999).random()}",
@@ -176,12 +219,12 @@ class BudgetRepository(
   }
 
   suspend fun updatePhotoReceiptCaption(id: String, caption: String) = withContext(Dispatchers.IO) {
-    val photo = dao.getAllPhotoReceipts().first().find { it.id == id } ?: return@withContext
-    dao.insertPhotoReceipt(photo.copy(caption = caption))
+    val photo = dao.getPhotoReceiptById(id) ?: dao.getAllPhotoReceipts().first().find { it.id == id } ?: return@withContext
+    dao.updatePhotoReceipt(photo.copy(caption = caption))
   }
 
   suspend fun deletePhotoReceipt(id: String) = withContext(Dispatchers.IO) {
-    val photo = dao.getAllPhotoReceipts().first().find { it.id == id }
+    val photo = dao.getPhotoReceiptById(id) ?: dao.getAllPhotoReceipts().first().find { it.id == id }
     if (photo != null && photo.localFileName.isNotBlank()) {
       try {
         val file = File(context.filesDir, "receipts/${photo.localFileName}")
@@ -191,24 +234,37 @@ class BudgetRepository(
     dao.deletePhotoReceipt(id)
   }
 
+  // --- Settings CRUD ---
   suspend fun updateSettings(startMonth: String, endMonth: String, themeMode: String? = null) = withContext(Dispatchers.IO) {
-    val current = dao.getSettingsSync() ?: AppSettings()
-    val newSettings = current.copy(
+    val current = dao.getSettingsSync()
+    val newSettings = (current ?: AppSettings()).copy(
       startMonth = startMonth,
       endMonth = endMonth,
-      themeMode = themeMode ?: current.themeMode
+      themeMode = themeMode ?: (current?.themeMode ?: "system")
     )
-    dao.insertSettings(newSettings)
+    if (current != null) {
+      dao.updateSettings(newSettings)
+    } else {
+      dao.insertSettings(newSettings)
+    }
   }
 
   suspend fun updateThemeMode(themeMode: String) = withContext(Dispatchers.IO) {
-    val current = dao.getSettingsSync() ?: AppSettings()
-    dao.insertSettings(current.copy(themeMode = themeMode))
+    val current = dao.getSettingsSync()
+    if (current != null) {
+      dao.updateSettings(current.copy(themeMode = themeMode))
+    } else {
+      dao.insertSettings(AppSettings(themeMode = themeMode))
+    }
   }
 
   suspend fun recordDriveBackup(timestamp: Long = System.currentTimeMillis()) = withContext(Dispatchers.IO) {
-    val current = dao.getSettingsSync() ?: AppSettings()
-    dao.insertSettings(current.copy(lastDriveBackup = timestamp))
+    val current = dao.getSettingsSync()
+    if (current != null) {
+      dao.updateSettings(current.copy(lastDriveBackup = timestamp))
+    } else {
+      dao.insertSettings(AppSettings(lastDriveBackup = timestamp))
+    }
   }
 
   suspend fun exportToJson(): String = withContext(Dispatchers.IO) {
@@ -218,7 +274,7 @@ class BudgetRepository(
     val photos = dao.getAllPhotoReceipts().first()
 
     val root = JSONObject()
-    root.put("app", "Money map")
+    root.put("app", "P Money")
     val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     root.put("exported_on", df.format(Date()))
     root.put("format_version", 1)

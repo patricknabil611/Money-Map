@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Money map"
+rootProject.name = "P Money"
 
 include(":app")

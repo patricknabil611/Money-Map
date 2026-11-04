@@ -1,7 +1,11 @@
 package com.example
 
+import android.Manifest
+import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -30,10 +34,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.ui.theme.AppShapes
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
@@ -49,6 +63,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.user.ProfileAvatarView
 import com.example.ui.AppTab
 import com.example.ui.BudgetViewModel
 import com.example.ui.components.CellEditorSheet
@@ -67,24 +85,63 @@ import com.example.ui.components.PhotoLightboxSheet
 import com.example.ui.components.RowEditorSheet
 import com.example.ui.components.SettingsSheet
 import com.example.ui.components.Sha2aEditorSheet
-import com.example.ui.screens.BiometricLockScreen
+import com.example.ui.screens.HomeOverviewScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoansScreen
 import com.example.ui.screens.MonthScreen
 import com.example.ui.screens.Sha2aScreen
+import com.example.ui.screens.UserSelectionScreen
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.ScheduleEngine
 import kotlinx.coroutines.delay
 
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.ui.graphics.Color
+import com.example.reminder.UpdateReminderManager
+import com.example.ui.components.AboutDialog
+import com.example.ui.components.NotificationSetupSheet
+import com.example.ui.components.SamsungEdgeLightingOverlay
+import com.example.ui.components.VoiceTaskDialog
+import com.example.util.AppCheckHelper
+
 class MainActivity : FragmentActivity() {
+  private lateinit var budgetViewModel: BudgetViewModel
+  private val openNotificationSetup = androidx.compose.runtime.mutableStateOf(false)
+  private val triggerEdgeLighting = androidx.compose.runtime.mutableStateOf(false)
+
+  private val permissionsLauncher = registerForActivityResult(
+    ActivityResultContracts.RequestMultiplePermissions()
+  ) { _ -> }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    AppCheckHelper.configureAppCheck(this, intent)
     enableEdgeToEdge()
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      permissionsLauncher.launch(
+        arrayOf(
+          Manifest.permission.POST_NOTIFICATIONS,
+          Manifest.permission.RECORD_AUDIO
+        )
+      )
+    } else {
+      permissionsLauncher.launch(
+        arrayOf(
+          Manifest.permission.RECORD_AUDIO
+        )
+      )
+    }
+
+    UpdateReminderManager.scheduleWeeklyUpdateReminder(this)
+    handleIncomingNotificationIntent(intent)
+
+    budgetViewModel = androidx.lifecycle.ViewModelProvider(this)[BudgetViewModel::class.java]
+
     setContent {
-      val viewModel: BudgetViewModel = viewModel()
+      val viewModel = budgetViewModel
       val settings by viewModel.settings.collectAsStateWithLifecycle()
-      val isAppUnlocked by viewModel.isAppUnlocked.collectAsStateWithLifecycle()
 
       val systemDark = isSystemInDarkTheme()
       val isDark = when (settings.themeMode) {
@@ -94,24 +151,90 @@ class MainActivity : FragmentActivity() {
       }
 
       MyApplicationTheme(darkTheme = isDark) {
-        if (!isAppUnlocked) {
-          BiometricLockScreen(
-            onUnlocked = { viewModel.unlockApp() }
-          )
-        } else {
-          MoneyMapApp(viewModel)
+        val showUserSelection by viewModel.showUserSelection.collectAsStateWithLifecycle()
+        val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+
+        Box(modifier = Modifier.fillMaxSize()) {
+          if (showUserSelection || currentProfile == null) {
+            UserSelectionScreen(
+              onUserSelected = { profile -> viewModel.selectUserProfile(profile) }
+            )
+          } else {
+            MoneyMapApp(
+              viewModel = viewModel,
+              externalOpenNotificationSetup = openNotificationSetup.value,
+              externalTriggerEdgeLighting = triggerEdgeLighting.value,
+              onConsumeNotificationIntent = {
+                openNotificationSetup.value = false
+                triggerEdgeLighting.value = false
+              }
+            )
+          }
+
+          // Top-level Notification Setup screen triggered directly from notification intent
+          if (openNotificationSetup.value) {
+            NotificationSetupSheet(
+              onDismiss = { openNotificationSetup.value = false },
+              onTriggerEdgeLightingTest = { triggerEdgeLighting.value = true }
+            )
+          }
+
+          // Top-level Orange Edge Lighting Overlay triggered by notification
+          if (triggerEdgeLighting.value) {
+            SamsungEdgeLightingOverlay(
+              title = "P Money Update Reminder",
+              message = "Weekly update reminder! Tap to open update setup.",
+              onDismiss = { triggerEdgeLighting.value = false },
+              onClick = {
+                triggerEdgeLighting.value = false
+                openNotificationSetup.value = true
+              }
+            )
+          }
         }
       }
     }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleIncomingNotificationIntent(intent)
+  }
+
+  private fun handleIncomingNotificationIntent(intent: Intent?) {
+    if (intent == null) return
+    val action = intent.action
+    val openSection = intent.getStringExtra(UpdateReminderManager.EXTRA_OPEN_SECTION)
+    val triggerGlow = intent.getBooleanExtra(UpdateReminderManager.EXTRA_TRIGGER_EDGE_LIGHTING, false)
+
+    if (action == UpdateReminderManager.ACTION_OPEN_UPDATE_CONFIG ||
+      openSection == UpdateReminderManager.SECTION_NOTIFICATION_SETUP
+    ) {
+      openNotificationSetup.value = true
+    }
+    if (triggerGlow) {
+      triggerEdgeLighting.value = true
+    }
+  }
+
+  override fun onStop() {
+    super.onStop()
   }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoneyMapApp(viewModel: BudgetViewModel) {
+fun MoneyMapApp(
+  viewModel: BudgetViewModel,
+  externalOpenNotificationSetup: Boolean = false,
+  externalTriggerEdgeLighting: Boolean = false,
+  onConsumeNotificationIntent: () -> Unit = {}
+) {
   val colors = LocalMoneyMapColors.current
   val configuration = LocalConfiguration.current
   val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+  val isExpandedScreen = configuration.screenWidthDp >= 800 || isLandscape
 
   val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
   val budgetRows by viewModel.budgetRows.collectAsStateWithLifecycle()
@@ -122,6 +245,14 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
   val settings by viewModel.settings.collectAsStateWithLifecycle()
   val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
   val openLoanIds by viewModel.openLoanIds.collectAsStateWithLifecycle()
+  val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+
+  val isSystemDark = isSystemInDarkTheme()
+  val isCurrentDark = when (settings.themeMode) {
+    "dark" -> true
+    "light" -> false
+    else -> isSystemDark
+  }
 
   val editingRow by viewModel.editingRow.collectAsStateWithLifecycle()
   val isNewRow by viewModel.isNewRow.collectAsStateWithLifecycle()
@@ -130,7 +261,24 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
   val viewingPhoto by viewModel.viewingPhoto.collectAsStateWithLifecycle()
   val showExportMariam by viewModel.showExportMariam.collectAsStateWithLifecycle()
   val showSettings by viewModel.showSettings.collectAsStateWithLifecycle()
+  val showVoiceDialog by viewModel.showVoiceDialog.collectAsStateWithLifecycle()
+  var showAboutDialog by remember { mutableStateOf(false) }
+  var showNotificationSetup by remember { mutableStateOf(false) }
+  var showEdgeLighting by remember { mutableStateOf(false) }
+  var showTopMenu by remember { mutableStateOf(false) }
   val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
+
+  LaunchedEffect(externalOpenNotificationSetup, externalTriggerEdgeLighting) {
+    if (externalOpenNotificationSetup) {
+      showNotificationSetup = true
+    }
+    if (externalTriggerEdgeLighting) {
+      showEdgeLighting = true
+    }
+    if (externalOpenNotificationSetup || externalTriggerEdgeLighting) {
+      onConsumeNotificationIntent()
+    }
+  }
 
   // Handle Android back button
   BackHandler(enabled = currentTab != AppTab.HOME || (currentTab == AppTab.PROJECTS && selectedProjectId != null)) {
@@ -149,8 +297,8 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
     }
   }
 
-  if (isLandscape) {
-    // Landscape Layout: NavigationRail on the left, full content space on the right
+  if (isExpandedScreen) {
+    // Desktop / Samsung DeX / Wide Screen Layout: NavigationRail on the left, full content space on the right
     Row(
       modifier = Modifier
         .fillMaxSize()
@@ -161,12 +309,12 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
         header = {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             IconButton(
-              onClick = { viewModel.lockApp() },
+              onClick = { viewModel.openUserSelection() },
               modifier = Modifier
                 .padding(top = 8.dp)
-                .testTag("lock_app_nav_rail_btn")
+                .testTag("switch_user_nav_rail_btn")
             ) {
-              Icon(Icons.Default.Lock, contentDescription = "Lock App", tint = colors.muted)
+              ProfileAvatarView(avatarKey = currentProfile?.avatarKey, modifier = Modifier.size(30.dp), shape = RoundedCornerShape(6.dp))
             }
             IconButton(
               onClick = { viewModel.openSettings() },
@@ -175,6 +323,21 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
                 .testTag("settings_top_btn")
             ) {
               Icon(Icons.Default.Settings, contentDescription = "Settings", tint = colors.muted)
+            }
+            IconButton(
+              onClick = {
+                val nextMode = if (isCurrentDark) "light" else "dark"
+                viewModel.updateTheme(nextMode)
+              },
+              modifier = Modifier
+                .padding(top = 4.dp)
+                .testTag("theme_toggle_nav_rail_btn")
+            ) {
+              Icon(
+                imageVector = if (isCurrentDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                contentDescription = if (isCurrentDark) "Switch to Light Mode" else "Switch to Dark Mode",
+                tint = colors.muted
+              )
             }
           }
         },
@@ -195,6 +358,21 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
             unselectedTextColor = colors.muted
           ),
           modifier = Modifier.testTag("tab_home")
+        )
+
+        NavigationRailItem(
+          selected = currentTab == AppTab.ALL,
+          onClick = { viewModel.setTab(AppTab.ALL) },
+          icon = { Icon(Icons.Default.TableChart, contentDescription = "All") },
+          label = { Text("All", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+          colors = NavigationRailItemDefaults.colors(
+            selectedIconColor = colors.headInk,
+            selectedTextColor = colors.ink,
+            indicatorColor = colors.head,
+            unselectedIconColor = colors.muted,
+            unselectedTextColor = colors.muted
+          ),
+          modifier = Modifier.testTag("tab_all")
         )
 
         NavigationRailItem(
@@ -250,26 +428,89 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
           .fillMaxHeight()
           .windowInsetsPadding(WindowInsets.statusBars)
       ) {
-        // Compact Landscape Header
+        // Compact Desktop / DeX Header
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
           Text(
-            text = "Money map",
-            fontSize = 18.sp,
+            text = "P Money",
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = colors.ink
           )
           Spacer(modifier = Modifier.size(10.dp))
+          Box(
+            modifier = Modifier
+              .clip(RoundedCornerShape(6.dp))
+              .background(colors.head.copy(alpha = 0.15f))
+              .padding(horizontal = 8.dp, vertical = 2.dp)
+          ) {
+            Text(
+              text = "Desktop View",
+              color = colors.head,
+              fontSize = 11.sp,
+              fontWeight = FontWeight.SemiBold
+            )
+          }
+          Spacer(modifier = Modifier.size(12.dp))
           Text(
-            text = "Patrick’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}",
-            fontSize = 12.sp,
+            text = "${currentProfile?.name ?: "Patrick"}’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}",
+            fontSize = 12.5.sp,
             color = colors.muted,
             modifier = Modifier.weight(1f)
           )
+          IconButton(
+            onClick = { viewModel.openVoiceDialog() },
+            modifier = Modifier.testTag("voice_entry_dex_btn")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Mic,
+              contentDescription = "Voice Task Entry",
+              tint = colors.head
+            )
+          }
+          IconButton(
+            onClick = { viewModel.openUserSelection() },
+            modifier = Modifier.testTag("switch_profile_dex_btn")
+          ) {
+            ProfileAvatarView(avatarKey = currentProfile?.avatarKey, modifier = Modifier.size(28.dp), shape = RoundedCornerShape(6.dp))
+          }
+          IconButton(
+            onClick = { showNotificationSetup = true },
+            modifier = Modifier.testTag("notification_setup_dex_btn")
+          ) {
+            Icon(
+              imageVector = Icons.Default.NotificationsActive,
+              contentDescription = "Notification & Update Setup",
+              tint = Color(0xFFFF6D00)
+            )
+          }
+          IconButton(
+            onClick = { showAboutDialog = true },
+            modifier = Modifier.testTag("about_app_dex_btn")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Info,
+              contentDescription = "About P Money",
+              tint = colors.muted
+            )
+          }
+          IconButton(
+            onClick = {
+              val nextMode = if (isCurrentDark) "light" else "dark"
+              viewModel.updateTheme(nextMode)
+            },
+            modifier = Modifier.testTag("theme_toggle_dex_btn")
+          ) {
+            Icon(
+              imageVector = if (isCurrentDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+              contentDescription = if (isCurrentDark) "Switch to Light Mode" else "Switch to Dark Mode",
+              tint = colors.muted
+            )
+          }
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -309,32 +550,125 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
       topBar = {
         TopAppBar(
           title = {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth()) {
               Text(
-                text = "Money map",
-                fontSize = 22.sp,
+                text = "P Money",
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = colors.ink
+                color = colors.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
               )
               Text(
-                text = "Patrick’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}",
-                fontSize = 12.5.sp,
-                color = colors.muted
+                text = "${currentProfile?.name ?: "Patrick"}’s budget, ${ScheduleEngine.mLabel(settings.startMonth)} to ${ScheduleEngine.mLabel(settings.endMonth)}",
+                fontSize = 12.sp,
+                color = colors.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
               )
             }
           },
           actions = {
             IconButton(
-              onClick = { viewModel.lockApp() },
-              modifier = Modifier.testTag("lock_app_top_btn")
+              onClick = { viewModel.openVoiceDialog() },
+              modifier = Modifier.testTag("voice_entry_top_btn")
             ) {
-              Icon(Icons.Default.Lock, contentDescription = "Lock App", tint = colors.muted)
+              Icon(
+                imageVector = Icons.Default.Mic,
+                contentDescription = "Voice Task Entry",
+                tint = colors.head
+              )
             }
             IconButton(
-              onClick = { viewModel.openSettings() },
-              modifier = Modifier.testTag("settings_top_btn")
+              onClick = { viewModel.openUserSelection() },
+              modifier = Modifier.testTag("switch_profile_top_btn")
             ) {
-              Icon(Icons.Default.Settings, contentDescription = "Settings", tint = colors.muted)
+              ProfileAvatarView(avatarKey = currentProfile?.avatarKey, modifier = Modifier.size(28.dp), shape = AppShapes.Small)
+            }
+            Box {
+              IconButton(
+                onClick = { showTopMenu = true },
+                modifier = Modifier.testTag("overflow_menu_top_btn")
+              ) {
+                Icon(
+                  imageVector = Icons.Default.MoreVert,
+                  contentDescription = "More options",
+                  tint = colors.muted
+                )
+              }
+              DropdownMenu(
+                expanded = showTopMenu,
+                onDismissRequest = { showTopMenu = false },
+                modifier = Modifier.background(colors.surface)
+              ) {
+                DropdownMenuItem(
+                  text = { Text("Notifications & Reminders", color = colors.ink, fontWeight = FontWeight.Medium) },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = Icons.Default.NotificationsActive,
+                      contentDescription = null,
+                      tint = Color(0xFFFF6D00)
+                    )
+                  },
+                  onClick = {
+                    showTopMenu = false
+                    showNotificationSetup = true
+                  },
+                  modifier = Modifier.testTag("notification_setup_top_btn")
+                )
+                DropdownMenuItem(
+                  text = { Text("About P Money", color = colors.ink, fontWeight = FontWeight.Medium) },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = Icons.Default.Info,
+                      contentDescription = null,
+                      tint = colors.muted
+                    )
+                  },
+                  onClick = {
+                    showTopMenu = false
+                    showAboutDialog = true
+                  },
+                  modifier = Modifier.testTag("about_app_top_btn")
+                )
+                DropdownMenuItem(
+                  text = { Text("Settings", color = colors.ink, fontWeight = FontWeight.Medium) },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = Icons.Default.Settings,
+                      contentDescription = null,
+                      tint = colors.muted
+                    )
+                  },
+                  onClick = {
+                    showTopMenu = false
+                    viewModel.openSettings()
+                  },
+                  modifier = Modifier.testTag("settings_top_btn")
+                )
+                DropdownMenuItem(
+                  text = {
+                    Text(
+                      text = if (isCurrentDark) "Light Mode" else "Dark Mode",
+                      color = colors.ink,
+                      fontWeight = FontWeight.Medium
+                    )
+                  },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = if (isCurrentDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                      contentDescription = null,
+                      tint = colors.muted
+                    )
+                  },
+                  onClick = {
+                    showTopMenu = false
+                    val nextMode = if (isCurrentDark) "light" else "dark"
+                    viewModel.updateTheme(nextMode)
+                  },
+                  modifier = Modifier.testTag("theme_toggle_top_btn")
+                )
+              }
             }
           },
           colors = TopAppBarDefaults.topAppBarColors(
@@ -361,6 +695,21 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
               unselectedTextColor = colors.muted
             ),
             modifier = Modifier.testTag("tab_home")
+          )
+
+          NavigationBarItem(
+            selected = currentTab == AppTab.ALL,
+            onClick = { viewModel.setTab(AppTab.ALL) },
+            icon = { Icon(Icons.Default.TableChart, contentDescription = "All") },
+            label = { Text("All", fontWeight = FontWeight.SemiBold) },
+            colors = NavigationBarItemDefaults.colors(
+              selectedIconColor = colors.headInk,
+              selectedTextColor = colors.ink,
+              indicatorColor = colors.head,
+              unselectedIconColor = colors.muted,
+              unselectedTextColor = colors.muted
+            ),
+            modifier = Modifier.testTag("tab_all")
           )
 
           NavigationBarItem(
@@ -515,6 +864,7 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
   if (showSettings) {
     SettingsSheet(
       settings = settings,
+      currentProfile = currentProfile,
       onDismiss = { viewModel.closeSettings() },
       onUpdateRange = { start, end -> viewModel.updateRange(start, end) },
       onUpdateTheme = { mode -> viewModel.updateTheme(mode) },
@@ -523,12 +873,53 @@ fun MoneyMapApp(viewModel: BudgetViewModel) {
       onDriveBackupDone = { viewModel.recordDriveBackupDone() },
       onImportJson = { json, cb -> viewModel.importJson(json, cb) },
       onResetDefault = { viewModel.resetToDefault() },
+      onToggleAutoSync = { viewModel.toggleAutoSync(it) },
+      onSyncNow = { viewModel.syncNow() },
       onLockApp = {
         viewModel.closeSettings()
         viewModel.lockApp()
+      },
+      onManageUsers = {
+        viewModel.closeSettings()
+        viewModel.openUserSelection()
+      },
+      onOpenNotificationSetup = {
+        viewModel.closeSettings()
+        showNotificationSetup = true
       }
     )
   }
+
+  if (showVoiceDialog) {
+    VoiceTaskDialog(
+      onDismiss = { viewModel.closeVoiceDialog() },
+      onConfirmTask = { task, setReminder ->
+        viewModel.handleVoiceTask(task, setReminder)
+      }
+    )
+  }
+
+  if (showAboutDialog) {
+    AboutDialog(
+      onDismiss = { showAboutDialog = false }
+    )
+  }
+
+  if (showNotificationSetup) {
+    NotificationSetupSheet(
+      onDismiss = { showNotificationSetup = false },
+      onTriggerEdgeLightingTest = { showEdgeLighting = true }
+    )
+  }
+
+  SamsungEdgeLightingOverlay(
+    isActive = showEdgeLighting,
+    onDismiss = { showEdgeLighting = false },
+    onClick = {
+      showEdgeLighting = false
+      showNotificationSetup = true
+    }
+  )
 }
 
 @Composable
@@ -546,6 +937,19 @@ fun MainContentTab(
 ) {
   when (currentTab) {
     AppTab.HOME -> {
+      HomeOverviewScreen(
+        rows = budgetRows,
+        settings = settings,
+        selectedMonth = selectedMonth,
+        onMonthChange = { viewModel.setSelectedMonth(it) },
+        onAddIncome = { viewModel.openAddRow("in") },
+        onAddExpense = { viewModel.openAddRow("out") },
+        onEditRow = { viewModel.openEditRow(it) },
+        onEditCell = { rowId, month -> viewModel.openCell(rowId, month) },
+        onNavigateToTab = { viewModel.setTab(it) }
+      )
+    }
+    AppTab.ALL -> {
       HomeScreen(
         rows = budgetRows,
         settings = settings,

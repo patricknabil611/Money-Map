@@ -170,7 +170,7 @@ object BiometricAuthManager {
       val executor = ContextCompat.getMainExecutor(activity)
       val promptInfo = BiometricPrompt.PromptInfo.Builder()
         .setTitle("Assign Your Fingerprint")
-        .setSubtitle("Touch the fingerprint sensor to bind this specific fingerprint to Money Map")
+        .setSubtitle("Touch the fingerprint sensor to bind this specific fingerprint to P Money")
         .setDescription("Only this assigned fingerprint will be authorized to unlock the app.")
         .setNegativeButtonText("Cancel")
         .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
@@ -249,7 +249,7 @@ object BiometricAuthManager {
 
       val executor = ContextCompat.getMainExecutor(activity)
       val promptInfo = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("Unlock Money Map")
+        .setTitle("Unlock P Money")
         .setSubtitle("Scan your assigned fingerprint to proceed")
         .setNegativeButtonText(if (hasBackupPin(activity)) "Use PIN" else "Cancel")
         .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
@@ -297,4 +297,76 @@ object BiometricAuthManager {
       onError("Authentication initialization failed: ${e.message}")
     }
   }
+
+  /**
+   * Dedicated fingerprint authentication for Patrick profile, locked exclusively to
+   * the authorized Samsung Galaxy S25 Ultra (Serial: R5CY14B6HZD).
+   */
+  fun authenticatePatrickFingerprint(
+    activity: FragmentActivity,
+    onSuccess: () -> Unit,
+    onFallbackToPassword: () -> Unit,
+    onError: (String) -> Unit
+  ) {
+    if (!DeviceSecurityManager.isAuthorizedPatrickDevice(activity)) {
+      onError("Fingerprint access is locked to Patrick's Samsung Galaxy S25 Ultra (Serial: ${DeviceSecurityManager.TARGET_SERIAL}). On this device, please enter password.")
+      onFallbackToPassword()
+      return
+    }
+
+    val availability = checkBiometricAvailability(activity)
+    if (availability != BiometricAvailability.READY) {
+      if (availability == BiometricAvailability.NOT_ENROLLED) {
+        onError("No fingerprints enrolled on this device. Please register a fingerprint in Samsung Settings.")
+      } else {
+        onError("Biometric sensor unavailable on this device.")
+      }
+      onFallbackToPassword()
+      return
+    }
+
+    val executor = ContextCompat.getMainExecutor(activity)
+    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+      .setTitle("Patrick Profile Fingerprint Unlock")
+      .setSubtitle("Bound to Samsung Galaxy S25 Ultra")
+      .setDescription("Touch fingerprint sensor to unlock Patrick's workspace")
+      .setNegativeButtonText("Use Password")
+      .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+      .build()
+
+    val biometricPrompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
+      override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+        super.onAuthenticationSucceeded(result)
+        DeviceSecurityManager.bindThisDeviceAsPatrickPhone(activity)
+        onSuccess()
+      }
+
+      override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+        super.onAuthenticationError(errorCode, errString)
+        if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON || errorCode == BiometricPrompt.ERROR_USER_CANCELED) {
+          onFallbackToPassword()
+        } else {
+          onError(errString.toString())
+        }
+      }
+
+      override fun onAuthenticationFailed() {
+        super.onAuthenticationFailed()
+        onError("Fingerprint not recognized. Try again.")
+      }
+    })
+
+    try {
+      var secretKey = getSecretKey()
+      if (secretKey == null) {
+        secretKey = generateSecretKey()
+      }
+      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+      cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+      biometricPrompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+    } catch (_: Exception) {
+      biometricPrompt.authenticate(promptInfo)
+    }
+  }
 }
+

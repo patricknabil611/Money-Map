@@ -9,22 +9,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -41,10 +36,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.PhotoReceipt
+import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import kotlinx.coroutines.delay
 import java.io.File
@@ -87,13 +84,14 @@ fun PhotoLightboxSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
     containerColor = colors.surface,
-    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    shape = AppShapes.Sheet
   ) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp)
-        .padding(bottom = 32.dp)
+        .padding(horizontal = 16.dp)
+        .padding(bottom = 24.dp)
+        .navigationBarsPadding()
         .verticalScroll(rememberScrollState())
     ) {
       Row(
@@ -101,22 +99,30 @@ fun PhotoLightboxSheet(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
             text = photo.caption.ifBlank { "Receipt" },
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = colors.ink
+            color = colors.ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
           Text(
             text = "Added $dateStr",
             fontSize = 13.sp,
-            color = colors.muted
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
         }
-        IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_lightbox_btn")) {
-          Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.muted)
-        }
+        AppIconButton(
+          onClick = onDismiss,
+          icon = Icons.Default.Close,
+          contentDescription = "Close",
+          tint = colors.muted,
+          modifier = Modifier.testTag("close_lightbox_btn")
+        )
       }
 
       Spacer(modifier = Modifier.height(14.dp))
@@ -126,7 +132,7 @@ fun PhotoLightboxSheet(
         modifier = Modifier
           .fillMaxWidth()
           .heightIn(min = 200.dp, max = 380.dp)
-          .clip(RoundedCornerShape(12.dp))
+          .clip(AppShapes.Card)
           .background(colors.surface2),
         contentAlignment = Alignment.Center
       ) {
@@ -145,20 +151,27 @@ fun PhotoLightboxSheet(
         onValueChange = { caption = it },
         label = { Text("Caption") },
         placeholder = { Text("What is this receipt for?") },
+        shape = AppShapes.Input,
+        colors = OutlinedTextFieldDefaults.colors(
+          focusedBorderColor = colors.head,
+          unfocusedBorderColor = colors.line
+        ),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("photo_caption_input"),
         singleLine = true
       )
 
-      Spacer(modifier = Modifier.height(18.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Button(
+        AppSecondaryButton(
+          text = if (deleteArmed) "Tap again" else "Delete photo",
+          icon = Icons.Default.Delete,
           onClick = {
             if (deleteArmed) {
               onDelete()
@@ -166,30 +179,21 @@ fun PhotoLightboxSheet(
               deleteArmed = true
             }
           },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = if (deleteArmed) colors.expense else Color.Transparent,
-            contentColor = if (deleteArmed) Color.White else colors.expense
-          ),
-          border = if (!deleteArmed) ButtonDefaults.outlinedButtonBorder else null,
-          modifier = Modifier.testTag("delete_photo_btn")
-        ) {
-          Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text(if (deleteArmed) "Tap again" else "Delete photo")
-        }
+          containerColor = if (deleteArmed) colors.expense else Color.Transparent,
+          contentColor = if (deleteArmed) Color.White else colors.expense,
+          borderColor = if (deleteArmed) colors.expense else colors.expense.copy(alpha = 0.5f),
+          modifier = Modifier
+            .weight(1f)
+            .testTag("delete_photo_btn")
+        )
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(
+        AppPrimaryButton(
+          text = "Save caption",
           onClick = { onSaveCaption(caption.trim()) },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = colors.head,
-            contentColor = colors.headInk
-          ),
-          modifier = Modifier.testTag("save_caption_btn")
-        ) {
-          Text("Save caption", fontWeight = FontWeight.SemiBold)
-        }
+          modifier = Modifier
+            .weight(1f)
+            .testTag("save_caption_btn")
+        )
       }
     }
   }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-moneymap-2dc6b183-eaa7-4715-a76b-29df97b9126e</string>
+    <string name="recaptcha_site_key" translatable="false">6LeV8AouAAAAAJ6ytwILpqIDYH5tdw3MfDilw1KS</string>
+</resources>

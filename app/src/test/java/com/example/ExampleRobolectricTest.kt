@@ -103,4 +103,91 @@ class ExampleRobolectricTest {
     assertEquals(false, com.example.security.BiometricAuthManager.verifyBackupPin(context, "0000"))
     assertEquals(false, com.example.security.BiometricAuthManager.verifyBackupPin(context, "12345"))
   }
+
+  @Test
+  fun testHomeOverviewCalculations() {
+    val rangeStart = "2026-01"
+    val rangeEnd = "2026-12"
+    val month = "2026-03"
+
+    val salary = BudgetRow(
+      id = "inc-1",
+      name = "Primary Salary",
+      kind = "in",
+      amount = 8000.0,
+      day = 1,
+      start = "2026-01",
+      every = 1
+    )
+
+    val freelance = BudgetRow(
+      id = "inc-2",
+      name = "Freelance Consulting",
+      kind = "in",
+      amount = 2500.0,
+      day = null,
+      start = "2026-01",
+      every = 1
+    )
+
+    val rent = BudgetRow(
+      id = "exp-1",
+      name = "Apartment Rent",
+      kind = "out",
+      amount = 3000.0,
+      day = 1,
+      start = "2026-01",
+      every = 1
+    )
+
+    val groceries = BudgetRow(
+      id = "exp-2",
+      name = "Groceries",
+      kind = "out",
+      amount = 1200.0,
+      day = null,
+      start = "2026-01",
+      every = 1
+    )
+
+    val carLoan = BudgetRow(
+      id = "loan-1",
+      name = "Car Loan",
+      kind = "out",
+      isLoan = true,
+      amount = 500.0,
+      day = 15,
+      total = 12000.0,
+      start = "2026-01",
+      every = 1,
+      paidJson = """{"2026-01":true,"2026-02":true}"""
+    )
+
+    val rows = listOf(salary, freelance, rent, groceries, carLoan)
+
+    // 1. Total Income
+    val inRows = rows.filter { it.kind == "in" }
+    val totalIncome = inRows.sumOf { ScheduleEngine.amt(it, month, rangeStart, rangeEnd) }
+    assertEquals(10500.0, totalIncome, 0.001)
+
+    // 2. Total Expenses
+    val outRows = rows.filter { it.kind != "in" }
+    val totalExpenses = outRows.sumOf { ScheduleEngine.amt(it, month, rangeStart, rangeEnd) }
+    assertEquals(4700.0, totalExpenses, 0.001)
+
+    // 3. Difference (Income - Expenses)
+    val difference = totalIncome - totalExpenses
+    assertEquals(5800.0, difference, 0.001)
+
+    // 4. Total Remaining from Loans
+    val loanRows = rows.filter { it.isLoan }
+    val loanInfos = loanRows.map { it to ScheduleEngine.loanInfo(it, rangeStart, rangeEnd) }
+    val totalLoanDebt = loanInfos.sumOf { it.second.total }
+    val totalPaidLoans = loanInfos.sumOf { it.second.paid }
+    val totalRemainingLoans = loanInfos.sumOf { it.second.remaining }
+
+    assertEquals(12000.0, totalLoanDebt, 0.001)
+    assertEquals(1000.0, totalPaidLoans, 0.001) // 2 payments of 500 paid
+    assertEquals(11000.0, totalRemainingLoans, 0.001) // 12000 - 1000 = 11000
+  }
 }
