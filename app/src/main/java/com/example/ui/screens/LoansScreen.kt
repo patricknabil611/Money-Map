@@ -149,7 +149,7 @@ fun LoansScreen(
           modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp),
-          shape = RoundedCornerShape(12.dp),
+          shape = AppShapes.Card,
           colors = CardDefaults.cardColors(containerColor = colors.surface),
           border = CardDefaults.outlinedCardBorder()
         ) {
@@ -300,17 +300,14 @@ fun LoansScreen(
                     text = "Paid so far: ${ArabicNumberHelper.fmt(info.paid)} EGP",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp,
-                    color = colors.ink
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f)
                   )
 
-                  OutlinedButton(
+                  AppSecondaryButton(
                     onClick = { onEditLoan(row.id) },
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(32.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp)
-                  ) {
-                    Text("Edit loan", fontSize = 12.sp, color = colors.ink, fontWeight = FontWeight.SemiBold)
-                  }
+                    text = "Edit loan"
+                  )
                 }
               }
             }
@@ -324,7 +321,7 @@ fun LoansScreen(
           modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 4.dp),
-          shape = RoundedCornerShape(12.dp),
+          shape = AppShapes.Card,
           colors = CardDefaults.cardColors(containerColor = colors.head)
         ) {
           Row(

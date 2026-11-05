@@ -189,14 +189,14 @@ fun RowEditorSheet(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
+          .clip(AppShapes.Medium)
           .background(colors.surface2)
           .padding(4.dp)
       ) {
         Box(
           modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(9.dp))
+            .clip(AppShapes.Small)
             .background(if (kind == "in") colors.surface else Color.Transparent)
             .clickable { kind = "in"; isLoan = false }
             .padding(vertical = 10.dp),
@@ -211,7 +211,7 @@ fun RowEditorSheet(
         Box(
           modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(9.dp))
+            .clip(AppShapes.Small)
             .background(if (kind != "in") colors.surface else Color.Transparent)
             .clickable { kind = "out" }
             .padding(vertical = 10.dp),
@@ -332,8 +332,8 @@ fun RowEditorSheet(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .border(1.dp, colors.line, RoundedCornerShape(12.dp))
+          .clip(AppShapes.Medium)
+          .border(1.dp, colors.line, AppShapes.Medium)
           .padding(12.dp)
       ) {
         Text("Amount changes", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 14.sp)
@@ -379,15 +379,16 @@ fun RowEditorSheet(
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
 
-            IconButton(
+            AppIconButton(
               onClick = {
                 val newSteps = steps.toMutableList()
                 newSteps.removeAt(i)
                 steps = newSteps
-              }
-            ) {
-              Icon(Icons.Default.Close, contentDescription = "Remove change", tint = colors.muted)
-            }
+              },
+              icon = Icons.Default.Close,
+              contentDescription = "Remove change",
+              tint = colors.muted
+            )
           }
         }
 

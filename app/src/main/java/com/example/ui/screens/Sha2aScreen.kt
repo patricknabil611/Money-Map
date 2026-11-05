@@ -34,6 +34,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import com.example.ui.components.AppSecondaryButton
+import com.example.ui.theme.AppShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -129,7 +131,7 @@ fun Sha2aScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(bottom = 16.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
@@ -142,15 +144,12 @@ fun Sha2aScreen(
             verticalAlignment = Alignment.CenterVertically
           ) {
             Text("In", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            OutlinedButton(
+            AppSecondaryButton(
               onClick = { onAddItem("in") },
-              shape = RoundedCornerShape(8.dp),
+              text = "Add",
+              icon = Icons.Default.Add,
               modifier = Modifier.testTag("add_sha2a_in_btn")
-            ) {
-              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.income)
-              Spacer(modifier = Modifier.width(4.dp))
-              Text("Add", color = colors.income, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
+            )
           }
 
           if (inItems.isEmpty()) {
@@ -183,7 +182,7 @@ fun Sha2aScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(bottom = 16.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
@@ -196,15 +195,12 @@ fun Sha2aScreen(
             verticalAlignment = Alignment.CenterVertically
           ) {
             Text("Out", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            OutlinedButton(
+            AppSecondaryButton(
               onClick = { onAddItem("out") },
-              shape = RoundedCornerShape(8.dp),
+              text = "Add",
+              icon = Icons.Default.Add,
               modifier = Modifier.testTag("add_sha2a_out_btn")
-            ) {
-              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.expense)
-              Spacer(modifier = Modifier.width(4.dp))
-              Text("Add", color = colors.expense, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
+            )
           }
 
           if (outItems.isEmpty()) {
@@ -237,7 +233,7 @@ fun Sha2aScreen(
         modifier = Modifier
           .fillMaxWidth()
           .padding(bottom = 28.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = CardDefaults.outlinedCardBorder()
       ) {
@@ -248,19 +244,16 @@ fun Sha2aScreen(
             verticalAlignment = Alignment.CenterVertically
           ) {
             Text("Andrew’s receipts", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            OutlinedButton(
+            AppSecondaryButton(
               onClick = {
                 photoPickerLauncher.launch(
                   PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
               },
-              shape = RoundedCornerShape(8.dp),
+              text = "Upload photos",
+              icon = Icons.Default.AddPhotoAlternate,
               modifier = Modifier.testTag("upload_receipts_btn")
-            ) {
-              Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.head)
-              Spacer(modifier = Modifier.width(4.dp))
-              Text("Upload photos", color = colors.ink, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
-            }
+            )
           }
 
           Spacer(modifier = Modifier.height(10.dp))
@@ -290,8 +283,8 @@ fun Sha2aScreen(
                     modifier = Modifier
                       .weight(1f)
                       .aspectRatio(0.75f)
-                      .clip(RoundedCornerShape(10.dp))
-                      .border(1.dp, colors.line, RoundedCornerShape(10.dp))
+                      .clip(AppShapes.Medium)
+                      .border(1.dp, colors.line, AppShapes.Medium)
                       .background(colors.surface2)
                       .clickable { onOpenPhoto(photo) }
                   ) {
@@ -346,7 +339,7 @@ fun TileCard(
 ) {
   Card(
     modifier = modifier,
-    shape = RoundedCornerShape(14.dp),
+    shape = AppShapes.Card,
     colors = CardDefaults.cardColors(containerColor = backgroundColor)
   ) {
     Column(modifier = Modifier.padding(12.dp)) {

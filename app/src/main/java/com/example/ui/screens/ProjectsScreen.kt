@@ -36,6 +36,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.AppIconButton
+import com.example.ui.components.AppPrimaryButton
+import com.example.ui.components.AppSecondaryButton
+import com.example.ui.theme.AppShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,12 +101,12 @@ fun ProjectsScreen(
           .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        IconButton(
+        AppIconButton(
           onClick = { onSelectProject(null) },
+          icon = Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = "Back to projects",
           modifier = Modifier.testTag("back_to_projects_btn")
-        ) {
-          Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to projects", tint = colors.ink)
-        }
+        )
 
         Spacer(modifier = Modifier.width(4.dp))
 
@@ -152,22 +156,16 @@ fun ProjectsScreen(
             text = "Projects",
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
-            color = colors.ink
+            color = colors.ink,
+            modifier = Modifier.weight(1f)
           )
 
-          Button(
+          AppPrimaryButton(
             onClick = { showAddProjectDialog = true },
-            colors = ButtonDefaults.buttonColors(
-              containerColor = colors.head,
-              contentColor = colors.headInk
-            ),
-            shape = RoundedCornerShape(10.dp),
+            text = "Add project",
+            icon = Icons.Default.Add,
             modifier = Modifier.testTag("add_project_btn")
-          ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Add project", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-          }
+          )
         }
       }
 
@@ -194,7 +192,7 @@ fun ProjectsScreen(
             .padding(vertical = 6.dp)
             .clickable { onSelectProject(project.id) }
             .testTag("project_card_${project.id}"),
-          shape = RoundedCornerShape(14.dp),
+          shape = AppShapes.Card,
           colors = CardDefaults.cardColors(containerColor = colors.surface),
           border = CardDefaults.outlinedCardBorder()
         ) {
@@ -247,7 +245,7 @@ fun ProjectsScreen(
               Box(
                 modifier = Modifier
                   .weight(1f)
-                  .clip(RoundedCornerShape(10.dp))
+                  .clip(AppShapes.Small)
                   .background(colors.incomeSoft)
                   .padding(8.dp)
               ) {
@@ -268,7 +266,7 @@ fun ProjectsScreen(
               Box(
                 modifier = Modifier
                   .weight(1f)
-                  .clip(RoundedCornerShape(10.dp))
+                  .clip(AppShapes.Small)
                   .background(colors.expenseSoft)
                   .padding(8.dp)
               ) {
@@ -289,7 +287,7 @@ fun ProjectsScreen(
               Box(
                 modifier = Modifier
                   .weight(1f)
-                  .clip(RoundedCornerShape(10.dp))
+                  .clip(AppShapes.Small)
                   .background(colors.leftoverSoft)
                   .padding(8.dp)
               ) {
@@ -339,6 +337,7 @@ fun ProjectsScreen(
 
     AlertDialog(
       onDismissRequest = { showAddProjectDialog = false },
+      shape = AppShapes.Dialog,
       title = { Text("New Project", fontWeight = FontWeight.Bold) },
       text = {
         Column {
@@ -365,27 +364,23 @@ fun ProjectsScreen(
         }
       },
       confirmButton = {
-        Button(
+        AppPrimaryButton(
           onClick = {
             if (newProjName.isBlank()) {
               dialogError = "Enter a project name."
-              return@Button
+              return@AppPrimaryButton
             }
             onAddProject(newProjName.trim(), newProjDesc.trim())
             showAddProjectDialog = false
           },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = colors.head,
-            contentColor = colors.headInk
-          )
-        ) {
-          Text("Create")
-        }
+          text = "Create"
+        )
       },
       dismissButton = {
-        TextButton(onClick = { showAddProjectDialog = false }) {
-          Text("Cancel", color = colors.muted)
-        }
+        AppSecondaryButton(
+          onClick = { showAddProjectDialog = false },
+          text = "Cancel"
+        )
       }
     )
   }

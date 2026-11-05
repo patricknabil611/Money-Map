@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import com.example.ui.theme.AppShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -250,7 +251,7 @@ fun SamsungEdgeLightingOverlay(
 
           Box(
             modifier = Modifier
-              .clip(RoundedCornerShape(10.dp))
+              .clip(AppShapes.Small)
               .background(neonOrangePrimary)
               .padding(horizontal = 10.dp, vertical = 6.dp)
           ) {

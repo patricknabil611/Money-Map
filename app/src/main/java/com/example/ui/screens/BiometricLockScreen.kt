@@ -44,6 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import com.example.ui.components.AppPrimaryButton
+import com.example.ui.components.AppSecondaryButton
+import com.example.ui.theme.AppShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -212,7 +215,7 @@ fun BiometricLockScreen(
 
       // Status indicator card
       Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = AppShapes.Card,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         modifier = Modifier.fillMaxWidth()
       ) {
@@ -286,22 +289,14 @@ fun BiometricLockScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            AppPrimaryButton(
               onClick = { triggerFingerprintAuth() },
-              colors = ButtonDefaults.buttonColors(
-                containerColor = colors.head,
-                contentColor = colors.headInk
-              ),
-              shape = RoundedCornerShape(12.dp),
+              text = "Unlock with Fingerprint",
+              icon = Icons.Default.Fingerprint,
               modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
                 .testTag("scan_fingerprint_btn")
-            ) {
-              Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(20.dp))
-              Spacer(modifier = Modifier.width(8.dp))
-              Text("Unlock with Fingerprint", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            }
+            )
           } else {
             // Not yet assigned
             Text(
@@ -321,28 +316,20 @@ fun BiometricLockScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             if (availability == BiometricAvailability.READY) {
-              Button(
+              AppPrimaryButton(
                 onClick = { triggerAssignFingerprint() },
-                colors = ButtonDefaults.buttonColors(
-                  containerColor = colors.head,
-                  contentColor = colors.headInk
-                ),
-                shape = RoundedCornerShape(12.dp),
+                text = "Assign My Fingerprint",
+                icon = Icons.Default.Fingerprint,
                 modifier = Modifier
                   .fillMaxWidth()
-                  .height(48.dp)
                   .testTag("assign_fingerprint_btn")
-              ) {
-                Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Assign My Fingerprint", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-              }
+              )
             } else {
               // Biometric sensor not ready on this hardware or emulator
               Box(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .clip(RoundedCornerShape(8.dp))
+                  .clip(AppShapes.Small)
                   .background(colors.year.copy(alpha = 0.12f))
                   .padding(10.dp)
               ) {
@@ -374,7 +361,7 @@ fun BiometricLockScreen(
               Box(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .clip(RoundedCornerShape(8.dp))
+                  .clip(AppShapes.Small)
                   .background(if (isError) colors.expense.copy(alpha = 0.12f) else colors.income.copy(alpha = 0.12f))
                   .padding(10.dp)
               ) {
@@ -400,38 +387,29 @@ fun BiometricLockScreen(
         modifier = Modifier.fillMaxWidth()
       ) {
         if (hasPin) {
-          OutlinedButton(
+          AppSecondaryButton(
             onClick = { showPinDialog = true },
-            shape = RoundedCornerShape(12.dp),
+            text = "Use Backup PIN",
+            icon = Icons.Default.Pin,
             modifier = Modifier.testTag("use_pin_btn")
-          ) {
-            Icon(Icons.Default.Pin, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.ink)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Use Backup PIN", color = colors.ink, fontWeight = FontWeight.SemiBold)
-          }
+          )
         } else {
-          OutlinedButton(
+          AppSecondaryButton(
             onClick = { showSetPinDialog = true },
-            shape = RoundedCornerShape(12.dp),
+            text = "Set Backup PIN",
+            icon = Icons.Default.Lock,
             modifier = Modifier.testTag("set_pin_btn")
-          ) {
-            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.ink)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Set Backup PIN", color = colors.ink, fontWeight = FontWeight.SemiBold)
-          }
+          )
         }
 
         // For emulator environments where no hardware fingerprint sensor exists, provide an entry option
         if (availability != BiometricAvailability.READY && !isAssigned) {
           Spacer(modifier = Modifier.width(10.dp))
-          Button(
+          AppSecondaryButton(
             onClick = { onUnlocked() },
-            colors = ButtonDefaults.buttonColors(containerColor = colors.surface, contentColor = colors.ink),
-            shape = RoundedCornerShape(12.dp),
+            text = "Continue to App",
             modifier = Modifier.testTag("skip_unlock_btn")
-          ) {
-            Text("Continue to App", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-          }
+          )
         }
       }
     }
@@ -490,7 +468,7 @@ fun PinEntryDialog(
 
   androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
     Card(
-      shape = RoundedCornerShape(20.dp),
+      shape = AppShapes.Dialog,
       colors = CardDefaults.cardColors(containerColor = colors.surface),
       modifier = Modifier
         .fillMaxWidth()
@@ -600,13 +578,11 @@ fun PinEntryDialog(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedButton(
+        AppSecondaryButton(
           onClick = onDismiss,
-          shape = RoundedCornerShape(10.dp),
+          text = "Cancel",
           modifier = Modifier.fillMaxWidth().testTag("pin_cancel_btn")
-        ) {
-          Text("Cancel", color = colors.muted)
-        }
+        )
       }
     }
   }
