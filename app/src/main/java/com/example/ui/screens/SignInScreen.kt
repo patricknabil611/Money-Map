@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.ContextWrapper
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -58,6 +59,7 @@ import com.example.BuildConfig
 import com.example.R
 import com.example.ui.theme.AppShapes
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -67,6 +69,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.io.IOException
 import java.net.UnknownHostException
+import android.util.Log
+import kotlinx.coroutines.withTimeoutOrNull
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+  is Activity -> this
+  is ContextWrapper -> baseContext.findActivity()
+  else -> null
+}
 
 @Composable
 fun SignInScreen(
@@ -79,30 +89,52 @@ fun SignInScreen(
   var isLoading by remember { mutableStateOf(false) }
   var errorMessage by remember { mutableStateOf<String?>(null) }
 
-  val credentialManager = remember { CredentialManager.create(context) }
-
   val handleGoogleSignIn: () -> Unit = {
     scope.launch {
       isLoading = true
       errorMessage = null
       try {
-        val googleIdOption = GetGoogleIdOption.Builder()
-          .setFilterByAuthorizedAccounts(false)
-          .setServerClientId(BuildConfig.GOOGLE_OAUTH_CLIENT_ID)
-          .setAutoSelectEnabled(true)
+        val serverClientId = try {
+          context.getString(R.string.default_web_client_id)
+        } catch (_: Exception) {
+          BuildConfig.GOOGLE_OAUTH_CLIENT_ID
+        }
+
+        val activity = context.findActivity() ?: (context as? Activity) ?: context
+        val activityCredentialManager = CredentialManager.create(activity)
+
+        // Standard interactive Sign-in with Google option for button clicks
+        val signInWithGoogleOption = GetSignInWithGoogleOption.Builder(serverClientId)
           .build()
 
         val request = GetCredentialRequest.Builder()
-          .addCredentialOption(googleIdOption)
+          .addCredentialOption(signInWithGoogleOption)
           .build()
 
-        val activity = context as? Activity ?: context
-        val result = credentialManager.getCredential(request = request, context = activity)
-        val credential = result.credential
+        val result = withTimeoutOrNull(25_000L) {
+          activityCredentialManager.getCredential(request = request, context = activity)
+        }
 
-        if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-          val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-          val idToken = googleIdTokenCredential.idToken
+        if (result == null) {
+          errorMessage = "Sign-in timed out. Please tap Continue with Google to try again."
+          return@launch
+        }
+
+        val credential = result.credential
+        val googleIdTokenCredential = when {
+          credential is CustomCredential -> {
+            try {
+              GoogleIdTokenCredential.createFrom(credential.data)
+            } catch (e: Exception) {
+              Log.e("SignInScreen", "Failed to parse GoogleIdTokenCredential", e)
+              null
+            }
+          }
+          else -> null
+        }
+
+        val idToken = googleIdTokenCredential?.idToken
+        if (!idToken.isNullOrBlank()) {
           val authCredential = GoogleAuthProvider.getCredential(idToken, null)
           val authResult = FirebaseAuth.getInstance().signInWithCredential(authCredential).await()
           val user = authResult.user
@@ -112,13 +144,17 @@ fun SignInScreen(
             errorMessage = "Sign-in completed but user profile was not found."
           }
         } else {
-          errorMessage = "Unexpected credential type returned from Google."
+          errorMessage = "Could not retrieve Google account credentials. Please try again."
         }
       } catch (e: GetCredentialCancellationException) {
-        errorMessage = "Sign-in cancelled."
+        // User dismissed the account chooser
+        Log.d("SignInScreen", "User dismissed account chooser")
+        errorMessage = null
       } catch (e: NoCredentialException) {
-        errorMessage = "No Google account found on device. Please add a Google account in Android Settings."
+        Log.w("SignInScreen", "NoCredentialException during sign in", e)
+        errorMessage = "Google Sign-In could not find an account. Please ensure Google Play Services is updated and try again."
       } catch (e: Exception) {
+        Log.e("SignInScreen", "Sign-in failed", e)
         when {
           e is FirebaseNetworkException || e is UnknownHostException || e is IOException -> {
             errorMessage = "No internet connection. Please check your network and try again."
