@@ -3,6 +3,7 @@ package com.example.ui.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import com.example.BuildConfig
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -86,7 +87,7 @@ fun AboutDialog(
     }
   }
 
-  val appVersion = "v2.5.0 (Build 25)"
+  val appVersion = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})"
   val releaseDate = "November 2, 2026"
 
   AlertDialog(
@@ -316,7 +317,7 @@ fun AboutDialog(
                 Release Date: $releaseDate
                 Package Size: $apkSizeStr
                 
-                What's New in v2.5.0:
+                What's New in v${BuildConfig.VERSION_NAME}:
                 • Official rebranding to P Money
                 • Google Sign-In with Firebase Auth cloud synchronization
                 • Samsung Galaxy S25 Ultra orange edge lighting animation on notifications

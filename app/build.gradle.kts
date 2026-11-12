@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.moneymap.zqpjfl"
     minSdk = 24
     targetSdk = 36
-    versionCode = 25
-    versionName = "2.5.0"
+    versionCode = 26
+    versionName = "26.06.26.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "GOOGLE_OAUTH_CLIENT_ID", "\"695616098259-m0trrupt1mfcor2v6meo2alrc1tr160b.apps.googleusercontent.com\"")

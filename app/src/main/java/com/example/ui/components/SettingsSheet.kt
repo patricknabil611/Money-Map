@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.content.Intent
+import com.example.BuildConfig
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -829,7 +830,7 @@ fun SettingsSheet(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                   Text("About P Money", fontWeight = FontWeight.Bold, color = colors.ink, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                  Text("Version v2.5.0 • Release Nov 2, 2026", color = colors.muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                  Text("Version v${BuildConfig.VERSION_NAME}", color = colors.muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
               }
 
@@ -839,7 +840,7 @@ fun SettingsSheet(
                   .background(colors.incomeSoft)
                   .padding(horizontal = 8.dp, vertical = 4.dp)
               ) {
-                Text("v2.5.0", color = colors.income, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("v${BuildConfig.VERSION_NAME}", color = colors.income, fontSize = 11.sp, fontWeight = FontWeight.Bold)
               }
             }
 
@@ -853,7 +854,7 @@ fun SettingsSheet(
                 .background(colors.surface)
                 .padding(12.dp)
             ) {
-              AboutMetadataRow(icon = Icons.Default.CheckCircle, iconColor = colors.income, label = "App Version", value = "v2.5.0 (Build 25)")
+              AboutMetadataRow(icon = Icons.Default.CheckCircle, iconColor = colors.income, label = "App Version", value = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})")
               Divider(color = colors.line, modifier = Modifier.padding(vertical = 6.dp))
               AboutMetadataRow(icon = Icons.Default.CalendarMonth, iconColor = colors.year, label = "Release Date", value = "November 2, 2026")
               Divider(color = colors.line, modifier = Modifier.padding(vertical = 6.dp))
@@ -919,7 +920,7 @@ fun SettingsSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             AppPrimaryButton(
-              text = "Download Latest APK (P Money v2.5.0)",
+              text = "Download Latest APK (P Money v${BuildConfig.VERSION_NAME})",
               icon = Icons.Default.Download,
               onClick = {
                 try {

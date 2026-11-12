@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.content.Intent
+import com.example.BuildConfig
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -468,7 +469,7 @@ fun NotificationSetupSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             AppPrimaryButton(
-              text = "Download Latest P Money APK (v2.5.0)",
+              text = "Download Latest P Money APK (v${BuildConfig.VERSION_NAME})",
               icon = Icons.Default.Download,
               containerColor = neonOrange,
               contentColor = Color.Black,
