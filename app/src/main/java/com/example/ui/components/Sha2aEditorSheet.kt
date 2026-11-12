@@ -109,62 +109,6 @@ fun Sha2aEditorSheet(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .clip(AppShapes.Medium)
-          .background(colors.surface2)
-          .padding(4.dp)
-      ) {
-        Box(
-          modifier = Modifier
-            .weight(1f)
-            .clip(AppShapes.Small)
-            .background(if (side == "mario") colors.surface else Color.Transparent)
-            .clickable { side = "mario" }
-            .padding(vertical = 10.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "Mario",
-            fontWeight = FontWeight.SemiBold,
-            color = if (side == "mario") colors.ink else colors.muted
-          )
-        }
-        Box(
-          modifier = Modifier
-            .weight(1f)
-            .clip(AppShapes.Small)
-            .background(if (side == "mariam") colors.surface else Color.Transparent)
-            .clickable { side = "mariam" }
-            .padding(vertical = 10.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "Mariam",
-            fontWeight = FontWeight.SemiBold,
-            color = if (side == "mariam") colors.ink else colors.muted
-          )
-        }
-        Box(
-          modifier = Modifier
-            .weight(1f)
-            .clip(AppShapes.Small)
-            .background(if (side == "shared") colors.surface else Color.Transparent)
-            .clickable { side = "shared" }
-            .padding(vertical = 10.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "Together (50/50)",
-            fontWeight = FontWeight.SemiBold,
-            color = if (side == "shared") colors.ink else colors.muted
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(14.dp))
-
       OutlinedTextField(
         value = name,
         onValueChange = { name = it; errorMsg = null },
