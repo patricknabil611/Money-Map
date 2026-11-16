@@ -88,6 +88,8 @@ import com.example.ui.components.PhotoLightboxSheet
 import com.example.ui.components.RowEditorSheet
 import com.example.ui.components.SettingsSheet
 import com.example.ui.components.Sha2aEditorSheet
+import com.example.security.BiometricAuthManager
+import com.example.ui.screens.BiometricLockScreen
 import com.example.ui.screens.HomeOverviewScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LoansScreen
@@ -155,11 +157,16 @@ class MainActivity : FragmentActivity() {
 
       MyApplicationTheme(darkTheme = isDark) {
         val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+        val isAppUnlocked by viewModel.isAppUnlocked.collectAsStateWithLifecycle()
 
         Box(modifier = Modifier.fillMaxSize()) {
           if (currentUser == null) {
             SignInScreen(
               onSignInSuccess = { user -> viewModel.onUserSignedIn(user) }
+            )
+          } else if (!isAppUnlocked) {
+            BiometricLockScreen(
+              onUnlocked = { viewModel.unlockApp() }
             )
           } else {
             MoneyMapApp(
@@ -174,7 +181,7 @@ class MainActivity : FragmentActivity() {
           }
 
           // Top-level Notification Setup screen triggered directly from notification intent
-          if (openNotificationSetup.value) {
+          if (currentUser != null && isAppUnlocked && openNotificationSetup.value) {
             NotificationSetupSheet(
               onDismiss = { openNotificationSetup.value = false },
               onTriggerEdgeLightingTest = { triggerEdgeLighting.value = true }
@@ -182,7 +189,7 @@ class MainActivity : FragmentActivity() {
           }
 
           // Top-level Orange Edge Lighting Overlay triggered by notification
-          if (triggerEdgeLighting.value) {
+          if (currentUser != null && isAppUnlocked && triggerEdgeLighting.value) {
             SamsungEdgeLightingOverlay(
               isActive = true,
               title = "P Money Update Reminder",
@@ -223,6 +230,14 @@ class MainActivity : FragmentActivity() {
 
   override fun onStop() {
     super.onStop()
+    if (!isChangingConfigurations &&
+      ::budgetViewModel.isInitialized &&
+      budgetViewModel.currentUser.value != null &&
+      BiometricAuthManager.isFingerprintEnabled(this) &&
+      BiometricAuthManager.isLockOnBackgroundEnabled(this)
+    ) {
+      budgetViewModel.lockApp()
+    }
   }
 }
 
@@ -623,6 +638,16 @@ fun MoneyMapApp(
             )
           }
           IconButton(
+            onClick = { viewModel.lockApp() },
+            modifier = Modifier.testTag("lock_app_dex_btn")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Lock,
+              contentDescription = "Lock App",
+              tint = colors.muted
+            )
+          }
+          IconButton(
             onClick = {
               val nextMode = if (isCurrentDark) "light" else "dark"
               viewModel.updateTheme(nextMode)
@@ -791,6 +816,21 @@ fun MoneyMapApp(
                     viewModel.updateTheme(nextMode)
                   },
                   modifier = Modifier.testTag("theme_toggle_top_btn")
+                )
+                DropdownMenuItem(
+                  text = { Text("Lock App", color = colors.ink, fontWeight = FontWeight.Medium) },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = Icons.Default.Lock,
+                      contentDescription = null,
+                      tint = colors.muted
+                    )
+                  },
+                  onClick = {
+                    showTopMenu = false
+                    viewModel.lockApp()
+                  },
+                  modifier = Modifier.testTag("lock_app_top_btn")
                 )
               }
             }

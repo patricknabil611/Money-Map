@@ -19,7 +19,7 @@ class ExampleRobolectricTest {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("Money map", appName)
+    assertEquals("P Money", appName)
   }
 
   @Test
@@ -102,6 +102,19 @@ class ExampleRobolectricTest {
     assertEquals(true, com.example.security.BiometricAuthManager.verifyBackupPin(context, "1234"))
     assertEquals(false, com.example.security.BiometricAuthManager.verifyBackupPin(context, "0000"))
     assertEquals(false, com.example.security.BiometricAuthManager.verifyBackupPin(context, "12345"))
+
+    // Enable/disable lock & background auto-lock flags
+    com.example.security.BiometricAuthManager.setFingerprintEnabled(context, true)
+    assertEquals(true, com.example.security.BiometricAuthManager.isFingerprintEnabled(context))
+    assertEquals(true, com.example.security.BiometricAuthManager.shouldLockOnLaunch(context))
+    assertEquals(true, com.example.security.BiometricAuthManager.isLockOnBackgroundEnabled(context))
+
+    com.example.security.BiometricAuthManager.setLockOnBackgroundEnabled(context, false)
+    assertEquals(false, com.example.security.BiometricAuthManager.isLockOnBackgroundEnabled(context))
+
+    com.example.security.BiometricAuthManager.setFingerprintEnabled(context, false)
+    com.example.security.BiometricAuthManager.markLockSetupPrompted(context)
+    assertEquals(false, com.example.security.BiometricAuthManager.shouldLockOnLaunch(context))
   }
 
   @Test

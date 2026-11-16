@@ -32,6 +32,8 @@ object BiometricAuthManager {
 
   private const val PREF_FINGERPRINT_ENABLED = "fingerprint_enabled"
   private const val PREF_FINGERPRINT_ASSIGNED = "fingerprint_assigned"
+  private const val PREF_LOCK_ON_BACKGROUND = "lock_on_background"
+  private const val PREF_LOCK_SETUP_PROMPTED = "lock_setup_prompted"
   private const val PREF_ASSIGNED_TIMESTAMP = "assigned_timestamp"
   private const val PREF_ENCRYPTED_TOKEN = "encrypted_token"
   private const val PREF_IV = "encryption_iv"
@@ -57,7 +59,6 @@ object BiometricAuthManager {
 
   fun isFingerprintEnabled(context: Context): Boolean {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    // If assigned, default to enabled
     val assigned = prefs.getBoolean(PREF_FINGERPRINT_ASSIGNED, false)
     return prefs.getBoolean(PREF_FINGERPRINT_ENABLED, assigned)
   }
@@ -65,6 +66,31 @@ object BiometricAuthManager {
   fun setFingerprintEnabled(context: Context, enabled: Boolean) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     prefs.edit().putBoolean(PREF_FINGERPRINT_ENABLED, enabled).apply()
+  }
+
+  fun isLockOnBackgroundEnabled(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return prefs.getBoolean(PREF_LOCK_ON_BACKGROUND, true)
+  }
+
+  fun setLockOnBackgroundEnabled(context: Context, enabled: Boolean) {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    prefs.edit().putBoolean(PREF_LOCK_ON_BACKGROUND, enabled).apply()
+  }
+
+  fun hasPromptedLockSetup(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return prefs.getBoolean(PREF_LOCK_SETUP_PROMPTED, false)
+  }
+
+  fun markLockSetupPrompted(context: Context) {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    prefs.edit().putBoolean(PREF_LOCK_SETUP_PROMPTED, true).apply()
+  }
+
+  fun shouldLockOnLaunch(context: Context): Boolean {
+    if (isFingerprintEnabled(context)) return true
+    return !hasPromptedLockSetup(context) && checkBiometricAvailability(context) == BiometricAvailability.READY
   }
 
   fun getAssignedTimestamp(context: Context): Long {
@@ -188,6 +214,7 @@ object BiometricAuthManager {
             prefs.edit()
               .putBoolean(PREF_FINGERPRINT_ASSIGNED, true)
               .putBoolean(PREF_FINGERPRINT_ENABLED, true)
+              .putBoolean(PREF_LOCK_SETUP_PROMPTED, true)
               .putLong(PREF_ASSIGNED_TIMESTAMP, System.currentTimeMillis())
               .putString(PREF_ENCRYPTED_TOKEN, Base64.encodeToString(encryptedBytes, Base64.NO_WRAP))
               .putString(PREF_IV, Base64.encodeToString(iv, Base64.NO_WRAP))
@@ -277,7 +304,11 @@ object BiometricAuthManager {
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
           super.onAuthenticationError(errorCode, errString)
           if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-            onUseBackupPin()
+            if (hasBackupPin(activity)) {
+              onUseBackupPin()
+            } else {
+              onError("Scan your fingerprint to unlock P Money.")
+            }
           } else {
             onError(errString.toString())
           }

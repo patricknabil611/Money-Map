@@ -21,9 +21,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +49,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import com.example.ui.components.AppPrimaryButton
 import com.example.ui.components.AppSecondaryButton
+import com.example.ui.components.AppTextButton
 import com.example.ui.theme.AppShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -122,6 +126,9 @@ fun BiometricLockScreen(
         onUnlocked()
       },
       onError = { err ->
+        isAssigned = BiometricAuthManager.isFingerprintAssigned(context)
+        isEnabled = BiometricAuthManager.isFingerprintEnabled(context)
+        hasPin = BiometricAuthManager.hasBackupPin(context)
         statusMessage = err
         isError = true
       },
@@ -169,6 +176,8 @@ fun BiometricLockScreen(
     modifier = Modifier
       .fillMaxSize()
       .background(colors.bg)
+      .statusBarsPadding()
+      .navigationBarsPadding()
       .verticalScroll(rememberScrollState())
       .padding(horizontal = 24.dp, vertical = 32.dp),
     contentAlignment = Alignment.Center
@@ -178,6 +187,7 @@ fun BiometricLockScreen(
       verticalArrangement = Arrangement.Center,
       modifier = Modifier
         .fillMaxWidth()
+        .widthIn(max = 440.dp)
         .padding(vertical = 16.dp)
     ) {
       // App Logo & Header
@@ -381,18 +391,29 @@ fun BiometricLockScreen(
       Spacer(modifier = Modifier.height(20.dp))
 
       // Secondary Actions: PIN / Setup
-      Row(
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth()
       ) {
         if (hasPin) {
-          AppSecondaryButton(
-            onClick = { showPinDialog = true },
-            text = "Use Backup PIN",
-            icon = Icons.Default.Pin,
-            modifier = Modifier.testTag("use_pin_btn")
-          )
+          if (!isAssigned) {
+            AppPrimaryButton(
+              onClick = { showPinDialog = true },
+              text = "Unlock with PIN",
+              icon = Icons.Default.Pin,
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("use_pin_btn")
+            )
+          } else {
+            AppSecondaryButton(
+              onClick = { showPinDialog = true },
+              text = "Use Backup PIN",
+              icon = Icons.Default.Pin,
+              modifier = Modifier.testTag("use_pin_btn")
+            )
+          }
         } else {
           AppSecondaryButton(
             onClick = { showSetPinDialog = true },
@@ -402,14 +423,30 @@ fun BiometricLockScreen(
           )
         }
 
-        // For emulator environments where no hardware fingerprint sensor exists, provide an entry option
-        if (availability != BiometricAvailability.READY && !isAssigned) {
-          Spacer(modifier = Modifier.width(10.dp))
-          AppSecondaryButton(
-            onClick = { onUnlocked() },
-            text = "Continue to App",
-            modifier = Modifier.testTag("skip_unlock_btn")
-          )
+        // Only allow skipping when neither a fingerprint nor a backup PIN has been set
+        if (!isAssigned && !hasPin) {
+          if (availability != BiometricAvailability.READY) {
+            AppSecondaryButton(
+              onClick = {
+                BiometricAuthManager.setFingerprintEnabled(context, false)
+                BiometricAuthManager.markLockSetupPrompted(context)
+                onUnlocked()
+              },
+              text = "Continue to App",
+              modifier = Modifier.testTag("skip_unlock_btn")
+            )
+          } else {
+            AppTextButton(
+              onClick = {
+                BiometricAuthManager.setFingerprintEnabled(context, false)
+                BiometricAuthManager.markLockSetupPrompted(context)
+                onUnlocked()
+              },
+              text = "Not now",
+              contentColor = colors.muted,
+              modifier = Modifier.testTag("skip_unlock_btn")
+            )
+          }
         }
       }
     }
@@ -442,7 +479,10 @@ fun BiometricLockScreen(
       onSubmit = { enteredPin ->
         if (enteredPin.length == 4) {
           BiometricAuthManager.setBackupPin(context, enteredPin)
+          BiometricAuthManager.setFingerprintEnabled(context, true)
+          BiometricAuthManager.markLockSetupPrompted(context)
           hasPin = true
+          isEnabled = true
           showSetPinDialog = false
           statusMessage = "Backup PIN successfully set!"
           isError = false

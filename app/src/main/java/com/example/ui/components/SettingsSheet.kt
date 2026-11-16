@@ -72,10 +72,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.fragment.app.FragmentActivity
 import com.google.firebase.auth.FirebaseUser
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Pin
+import androidx.compose.material.icons.filled.Security
 import coil.compose.AsyncImage
 import com.example.data.model.AppSettings
+import com.example.security.BiometricAuthManager
+import com.example.security.BiometricAvailability
+import com.example.ui.screens.PinEntryDialog
 import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ScheduleEngine
@@ -110,12 +116,20 @@ fun SettingsSheet(
   val scope = rememberCoroutineScope()
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+  val activity = context as? FragmentActivity
   var startMonth by remember(settings) { mutableStateOf(settings.startMonth) }
   var endMonth by remember(settings) { mutableStateOf(settings.endMonth) }
   var errorMsg by remember { mutableStateOf<String?>(null) }
   var infoMsg by remember { mutableStateOf<String?>(null) }
   var resetArmed by remember { mutableStateOf(false) }
   var showSignOutConfirm by remember { mutableStateOf(false) }
+
+  var isBiometricEnabled by remember { mutableStateOf(BiometricAuthManager.isFingerprintEnabled(context)) }
+  var isFingerprintAssigned by remember { mutableStateOf(BiometricAuthManager.isFingerprintAssigned(context)) }
+  var isLockOnBackground by remember { mutableStateOf(BiometricAuthManager.isLockOnBackgroundEnabled(context)) }
+  var hasBackupPin by remember { mutableStateOf(BiometricAuthManager.hasBackupPin(context)) }
+  val biometricAvailability = remember { BiometricAuthManager.checkBiometricAvailability(context) }
+  var showSetPinDialog by remember { mutableStateOf(false) }
 
   LaunchedEffect(resetArmed) {
     if (resetArmed) {
@@ -358,6 +372,246 @@ fun SettingsSheet(
                 .fillMaxWidth()
                 .testTag("manage_users_btn")
             )
+          }
+        }
+
+        // Section 1B: Biometric & App Lock Security
+        Card(
+          shape = AppShapes.Card,
+          colors = CardDefaults.cardColors(containerColor = colors.surface2),
+          border = CardDefaults.outlinedCardBorder(),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+            .testTag("biometric_security_card")
+        ) {
+          Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                  modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF8B5CF6).copy(alpha = 0.15f)),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.Fingerprint,
+                    contentDescription = "Biometric Lock",
+                    tint = Color(0xFF8B5CF6),
+                    modifier = Modifier.size(22.dp)
+                  )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = "Biometric & PIN Lock",
+                    fontWeight = FontWeight.Bold,
+                    color = colors.ink,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                  )
+                  Text(
+                    text = when {
+                      isBiometricEnabled && isFingerprintAssigned -> "Protected by assigned fingerprint"
+                      isBiometricEnabled && hasBackupPin -> "Protected by 4-digit Backup PIN"
+                      biometricAvailability == BiometricAvailability.READY -> "Tap switch to lock with fingerprint"
+                      else -> "Protect app with a 4-digit PIN"
+                    },
+                    color = colors.muted,
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                  )
+                }
+              }
+
+              Box(
+                modifier = Modifier
+                  .clip(AppShapes.Small)
+                  .background(
+                    if (isBiometricEnabled) colors.incomeSoft else colors.surface
+                  )
+                  .padding(horizontal = 8.dp, vertical = 4.dp)
+              ) {
+                Text(
+                  text = if (isBiometricEnabled) "Active" else "Off",
+                  color = if (isBiometricEnabled) colors.income else colors.muted,
+                  fontSize = 11.sp,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Enable/Disable App Lock row
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(AppShapes.Medium)
+                .background(colors.surface)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Require Lock on Launch",
+                  fontWeight = FontWeight.SemiBold,
+                  fontSize = 13.5.sp,
+                  color = colors.ink
+                )
+                Text(
+                  text = if (isFingerprintAssigned) "Fingerprint bound to this device" else "Bind fingerprint or set backup PIN",
+                  fontSize = 11.sp,
+                  color = colors.muted
+                )
+              }
+              Switch(
+                checked = isBiometricEnabled,
+                onCheckedChange = { wantEnable ->
+                  if (wantEnable) {
+                    if (isFingerprintAssigned || hasBackupPin) {
+                      BiometricAuthManager.setFingerprintEnabled(context, true)
+                      BiometricAuthManager.markLockSetupPrompted(context)
+                      isBiometricEnabled = true
+                      errorMsg = null
+                      infoMsg = "App lock enabled."
+                    } else if (biometricAvailability == BiometricAvailability.READY && activity != null) {
+                      BiometricAuthManager.assignSingleFingerprint(
+                        activity = activity,
+                        onSuccess = {
+                          isFingerprintAssigned = true
+                          isBiometricEnabled = true
+                          errorMsg = null
+                          infoMsg = "Fingerprint bound & biometric lock enabled!"
+                        },
+                        onError = { err ->
+                          errorMsg = err
+                        }
+                      )
+                    } else {
+                      showSetPinDialog = true
+                    }
+                  } else {
+                    BiometricAuthManager.setFingerprintEnabled(context, false)
+                    BiometricAuthManager.markLockSetupPrompted(context)
+                    isBiometricEnabled = false
+                    infoMsg = "Biometric lock turned off."
+                  }
+                },
+                colors = SwitchDefaults.colors(
+                  checkedThumbColor = colors.headInk,
+                  checkedTrackColor = colors.head
+                ),
+                modifier = Modifier.testTag("biometric_lock_toggle")
+              )
+            }
+
+            if (isBiometricEnabled) {
+              Spacer(modifier = Modifier.height(8.dp))
+
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .clip(AppShapes.Medium)
+                  .background(colors.surface)
+                  .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = "Lock When Leaving App",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.5.sp,
+                    color = colors.ink
+                  )
+                  Text(
+                    text = "Automatically lock when app goes to background",
+                    fontSize = 11.sp,
+                    color = colors.muted
+                  )
+                }
+                Switch(
+                  checked = isLockOnBackground,
+                  onCheckedChange = { enabled ->
+                    BiometricAuthManager.setLockOnBackgroundEnabled(context, enabled)
+                    isLockOnBackground = enabled
+                  },
+                  colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.headInk,
+                    checkedTrackColor = colors.head
+                  ),
+                  modifier = Modifier.testTag("lock_on_background_toggle")
+                )
+              }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              if (biometricAvailability == BiometricAvailability.READY && activity != null) {
+                AppSecondaryButton(
+                  text = if (isFingerprintAssigned) "Re-assign Finger" else "Assign Finger",
+                  icon = Icons.Default.Fingerprint,
+                  onClick = {
+                    BiometricAuthManager.assignSingleFingerprint(
+                      activity = activity,
+                      onSuccess = {
+                        isFingerprintAssigned = true
+                        isBiometricEnabled = true
+                        errorMsg = null
+                        infoMsg = "Fingerprint updated and bound to P Money!"
+                      },
+                      onError = { err ->
+                        errorMsg = err
+                      }
+                    )
+                  },
+                  modifier = Modifier
+                    .weight(1f)
+                    .testTag("settings_assign_fingerprint_btn")
+                )
+              }
+
+              AppSecondaryButton(
+                text = if (hasBackupPin) "Change PIN" else "Set Backup PIN",
+                icon = Icons.Default.Pin,
+                onClick = { showSetPinDialog = true },
+                modifier = Modifier
+                  .weight(1f)
+                  .testTag("settings_backup_pin_btn")
+              )
+            }
+
+            if (isFingerprintAssigned || hasBackupPin) {
+              Spacer(modifier = Modifier.height(10.dp))
+              AppPrimaryButton(
+                text = "Lock App Now",
+                icon = Icons.Default.Lock,
+                onClick = {
+                  if (!isBiometricEnabled) {
+                    BiometricAuthManager.setFingerprintEnabled(context, true)
+                    BiometricAuthManager.markLockSetupPrompted(context)
+                  }
+                  onLockApp()
+                },
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .testTag("lock_app_now_btn")
+              )
+            }
           }
         }
 
@@ -968,6 +1222,29 @@ fun SettingsSheet(
         )
       },
       containerColor = colors.surface
+    )
+  }
+
+  if (showSetPinDialog) {
+    PinEntryDialog(
+      title = if (hasBackupPin) "Change Backup PIN" else "Set Backup PIN",
+      subtitle = "Enter a 4-digit PIN for unlocking P Money",
+      onDismiss = { showSetPinDialog = false },
+      onSubmit = { enteredPin ->
+        if (enteredPin.length == 4) {
+          BiometricAuthManager.setBackupPin(context, enteredPin)
+          BiometricAuthManager.setFingerprintEnabled(context, true)
+          BiometricAuthManager.markLockSetupPrompted(context)
+          hasBackupPin = true
+          isBiometricEnabled = true
+          showSetPinDialog = false
+          errorMsg = null
+          infoMsg = "Backup PIN saved and app lock enabled!"
+          true
+        } else {
+          false
+        }
+      }
     )
   }
 }

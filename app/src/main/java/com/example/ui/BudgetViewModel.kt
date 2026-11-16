@@ -19,6 +19,7 @@ import com.example.data.repository.BudgetRepository
 import com.example.data.sync.FirestoreRealtimeSyncManager
 import com.example.data.user.UserManager
 import com.example.reminder.ReminderManager
+import com.example.security.BiometricAuthManager
 import com.example.util.ExportConfig
 import com.example.util.ImageExporter
 import com.example.util.ScheduleEngine
@@ -102,7 +103,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
 
   // App Lock state
-  private val _isAppUnlocked = MutableStateFlow(true)
+  private val _isAppUnlocked = MutableStateFlow(!BiometricAuthManager.shouldLockOnLaunch(application))
   val isAppUnlocked = _isAppUnlocked.asStateFlow()
 
   val syncState = GoogleDriveSyncManager.syncState
@@ -210,10 +211,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         credentialManager.clearCredentialState(ClearCredentialStateRequest())
         repository.clearAllBudgetData()
         _currentUser.value = null
+        _isAppUnlocked.value = true
         showToast("Signed out successfully.")
         onComplete()
       } catch (e: Exception) {
         _currentUser.value = null
+        _isAppUnlocked.value = true
         onComplete()
       }
     }
