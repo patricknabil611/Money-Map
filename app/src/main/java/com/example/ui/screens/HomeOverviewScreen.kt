@@ -72,6 +72,7 @@ import com.example.ui.components.MonthDropdown
 import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
+import com.example.util.RecordOrder
 import com.example.util.ScheduleEngine
 import kotlin.math.abs
 
@@ -112,7 +113,7 @@ fun HomeOverviewScreen(
 
   // 1. Income Items and Total Income
   val allInRows = remember(rows) {
-    rows.filter { it.kind == "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(rows.filter { it.kind == "in" })
   }
 
   val totalIncome = remember(allInRows, selectedMonth, rangeStart, rangeEnd) {
@@ -121,7 +122,7 @@ fun HomeOverviewScreen(
 
   // 2. Expense Items and Total Expenses
   val allOutRows = remember(rows) {
-    rows.filter { it.kind != "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(rows.filter { it.kind != "in" })
   }
 
   val totalExpenses = remember(allOutRows, selectedMonth, rangeStart, rangeEnd) {
@@ -136,7 +137,7 @@ fun HomeOverviewScreen(
 
   // 4. Loans & Total Remaining from Loans
   val loanRows = remember(rows) {
-    rows.filter { it.isLoan }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(rows.filter { it.isLoan })
   }
 
   val loanInfos = remember(loanRows, rangeStart, rangeEnd) {
@@ -811,6 +812,17 @@ private fun IncomeDetailsSection(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                   )
+                  val createdDate = remember(row.createdAt) { RecordOrder.formatCreatedDate(row.createdAt) }
+                  if (createdDate != null) {
+                    Text(
+                      text = createdDate,
+                      fontSize = 11.sp,
+                      color = colors.muted,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      modifier = Modifier.testTag("home_income_date_${row.id}")
+                    )
+                  }
                   Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                       text = cadenceText,
@@ -1014,6 +1026,17 @@ private fun ExpenseDetailsSection(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                   )
+                  val createdDate = remember(row.createdAt) { RecordOrder.formatCreatedDate(row.createdAt) }
+                  if (createdDate != null) {
+                    Text(
+                      text = createdDate,
+                      fontSize = 11.sp,
+                      color = colors.muted,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      modifier = Modifier.testTag("home_expense_date_${row.id}")
+                    )
+                  }
                   Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                       text = cadenceText,

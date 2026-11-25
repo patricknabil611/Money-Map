@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -41,32 +42,42 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
+import com.example.data.model.MonthEntry
 import com.example.ui.components.AppIconButton
 import com.example.ui.components.MonthDropdown
 import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
+import com.example.util.RecordOrder
 import com.example.util.ScheduleEngine
 
 @Composable
 fun MonthScreen(
   rows: List<BudgetRow>,
+  monthEntries: List<MonthEntry>,
   settings: AppSettings,
   selectedMonth: String,
   onMonthChange: (String) -> Unit,
-  onItemClick: (String, String) -> Unit,
-  onTogglePaid: (String, String, Boolean) -> Unit
+  onEntryClick: (String) -> Unit,
+  onAddEntry: (String) -> Unit,
+  onToggleEntryPaid: (String, Boolean) -> Unit
 ) {
   val colors = LocalMoneyMapColors.current
   val rangeStart = settings.startMonth
   val rangeEnd = settings.endMonth
 
-  val selectableMonths = remember(rangeStart, rangeEnd, rows) {
+  val selectableMonths = remember(rangeStart, rangeEnd, rows, monthEntries) {
     var minM = rangeStart
     var maxM = rangeEnd
     rows.forEach { r ->
       if (ScheduleEngine.validM(r.start) && ScheduleEngine.mIdx(r.start) < ScheduleEngine.mIdx(minM)) {
         minM = r.start
+      }
+    }
+    monthEntries.forEach { me ->
+      if (ScheduleEngine.validM(me.month)) {
+        if (ScheduleEngine.mIdx(me.month) < ScheduleEngine.mIdx(minM)) minM = me.month
+        if (ScheduleEngine.mIdx(me.month) > ScheduleEngine.mIdx(maxM)) maxM = me.month
       }
     }
     val cur = ScheduleEngine.currentMonth()
@@ -79,21 +90,19 @@ fun MonthScreen(
   val canPrev = currentIndex > 0
   val canNext = currentIndex >= 0 && currentIndex < selectableMonths.size - 1
 
-  val inItems = remember(rows, selectedMonth, rangeStart, rangeEnd) {
-    rows.filter { it.kind == "in" && ScheduleEngine.amt(it, selectedMonth, rangeStart, rangeEnd) > 0 }
-      .sortedWith(compareBy({ it.sortOrder }, { it.name }))
+  val inItems = remember(monthEntries, selectedMonth) {
+    RecordOrder.sort(monthEntries.filter { it.month == selectedMonth && it.kind == "in" && it.amount > 0 })
   }
 
-  val outItems = remember(rows, selectedMonth, rangeStart, rangeEnd) {
-    rows.filter { it.kind != "in" && ScheduleEngine.amt(it, selectedMonth, rangeStart, rangeEnd) > 0 }
-      .sortedWith(compareBy({ it.day ?: 99 }, { it.sortOrder }))
+  val outItems = remember(monthEntries, selectedMonth) {
+    RecordOrder.sort(monthEntries.filter { it.month == selectedMonth && it.kind != "in" && it.amount > 0 })
   }
 
-  val incTotal = remember(inItems, selectedMonth, rangeStart, rangeEnd) {
-    inItems.sumOf { ScheduleEngine.amt(it, selectedMonth, rangeStart, rangeEnd) }
+  val incTotal = remember(inItems) {
+    inItems.sumOf { it.amount }
   }
-  val expTotal = remember(outItems, selectedMonth, rangeStart, rangeEnd) {
-    outItems.sumOf { ScheduleEngine.amt(it, selectedMonth, rangeStart, rangeEnd) }
+  val expTotal = remember(outItems) {
+    outItems.sumOf { it.amount }
   }
   val leftover = incTotal - expTotal
   val pctSpent = if (incTotal > 0) ((expTotal / incTotal) * 100).coerceIn(0.0, 100.0) else if (expTotal > 0) 100.0 else 0.0
@@ -102,6 +111,7 @@ fun MonthScreen(
     modifier = Modifier
       .fillMaxSize()
       .padding(horizontal = 14.dp, vertical = 6.dp)
+      .testTag("month_screen_list")
   ) {
     // Month picker header
     item {
@@ -304,12 +314,21 @@ fun MonthScreen(
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(14.dp),
+              .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
             Text("Money in", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            Text(ArabicNumberHelper.fmt(incTotal), color = colors.income, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(ArabicNumberHelper.fmt(incTotal), color = colors.income, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+              AppIconButton(
+                onClick = { onAddEntry("in") },
+                icon = Icons.Default.Add,
+                contentDescription = "Add income to ${ScheduleEngine.mLabel(selectedMonth)}",
+                tint = colors.income,
+                modifier = Modifier.testTag("month_add_in_btn")
+              )
+            }
           }
 
           if (inItems.isEmpty()) {
@@ -320,18 +339,15 @@ fun MonthScreen(
               modifier = Modifier.padding(horizontal = 14.dp, vertical = 20.dp)
             )
           } else {
-            inItems.forEachIndexed { idx, row ->
+            inItems.forEachIndexed { idx, entry ->
               if (idx > 0) {
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.line))
               }
-              MonthRowItem(
-                row = row,
-                month = selectedMonth,
-                rangeStart = rangeStart,
-                rangeEnd = rangeEnd,
+              MonthEntryItem(
+                entry = entry,
                 isIncome = true,
-                onItemClick = onItemClick,
-                onTogglePaid = onTogglePaid
+                onEntryClick = onEntryClick,
+                onTogglePaid = onToggleEntryPaid
               )
             }
           }
@@ -353,12 +369,21 @@ fun MonthScreen(
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(14.dp),
+              .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Text("Money out, by day", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            Text(ArabicNumberHelper.fmt(expTotal), color = colors.expense, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Money out", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(ArabicNumberHelper.fmt(expTotal), color = colors.expense, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+              AppIconButton(
+                onClick = { onAddEntry("out") },
+                icon = Icons.Default.Add,
+                contentDescription = "Add expense to ${ScheduleEngine.mLabel(selectedMonth)}",
+                tint = colors.expense,
+                modifier = Modifier.testTag("month_add_out_btn")
+              )
+            }
           }
 
           if (outItems.isEmpty()) {
@@ -369,18 +394,15 @@ fun MonthScreen(
               modifier = Modifier.padding(horizontal = 14.dp, vertical = 20.dp)
             )
           } else {
-            outItems.forEachIndexed { idx, row ->
+            outItems.forEachIndexed { idx, entry ->
               if (idx > 0) {
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.line))
               }
-              MonthRowItem(
-                row = row,
-                month = selectedMonth,
-                rangeStart = rangeStart,
-                rangeEnd = rangeEnd,
+              MonthEntryItem(
+                entry = entry,
                 isIncome = false,
-                onItemClick = onItemClick,
-                onTogglePaid = onTogglePaid
+                onEntryClick = onEntryClick,
+                onTogglePaid = onToggleEntryPaid
               )
             }
           }
@@ -391,28 +413,24 @@ fun MonthScreen(
 }
 
 @Composable
-fun MonthRowItem(
-  row: BudgetRow,
-  month: String,
-  rangeStart: String,
-  rangeEnd: String,
+fun MonthEntryItem(
+  entry: MonthEntry,
   isIncome: Boolean,
-  onItemClick: (String, String) -> Unit,
-  onTogglePaid: (String, String, Boolean) -> Unit
+  onEntryClick: (String) -> Unit,
+  onTogglePaid: (String, Boolean) -> Unit
 ) {
   val colors = LocalMoneyMapColors.current
-  val amount = ScheduleEngine.amt(row, month, rangeStart, rangeEnd)
-  val payInfo = ScheduleEngine.payInfo(row, month, rangeStart, rangeEnd)
-  val isPaid = row.getPaid()[month] == true
+  val createdDate = remember(entry.createdAt) { RecordOrder.formatCreatedDate(entry.createdAt) }
 
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .clickable { onItemClick(row.id, month) }
-      .padding(horizontal = 14.dp, vertical = 10.dp),
+      .clickable { onEntryClick(entry.id) }
+      .padding(horizontal = 14.dp, vertical = 10.dp)
+      .testTag("month_entry_${entry.id}"),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    // Day badge
+    // Day badge (kept exactly as before)
     Box(
       modifier = Modifier
         .size(38.dp)
@@ -421,7 +439,7 @@ fun MonthRowItem(
       contentAlignment = Alignment.Center
     ) {
       Text(
-        text = row.day?.toString() ?: "–",
+        text = entry.day?.toString() ?: "–",
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
         color = colors.muted
@@ -430,11 +448,11 @@ fun MonthRowItem(
 
     Spacer(modifier = Modifier.width(12.dp))
 
-    // Title and sub
+    // Title, created date (for non-legacy items), and pay info
     Column(modifier = Modifier.weight(1f)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-          text = row.name,
+          text = entry.name,
           fontWeight = FontWeight.Medium,
           fontSize = 14.sp,
           color = colors.ink,
@@ -442,7 +460,7 @@ fun MonthRowItem(
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.weight(1f, fill = false)
         )
-        if (row.isLoan) {
+        if (entry.isLoan) {
           Box(
             modifier = Modifier
               .padding(start = 4.dp)
@@ -454,35 +472,47 @@ fun MonthRowItem(
           }
         }
       }
-      Text(
-        text = payInfo,
-        color = colors.muted,
-        fontSize = 12.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-      )
+      if (createdDate != null) {
+        Text(
+          text = createdDate,
+          color = colors.muted,
+          fontSize = 11.sp,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.testTag("month_entry_date_${entry.id}")
+        )
+      }
+      if (entry.payInfoText.isNotBlank()) {
+        Text(
+          text = entry.payInfoText,
+          color = colors.muted,
+          fontSize = 12.sp,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+      }
     }
 
     Spacer(modifier = Modifier.width(8.dp))
 
     // Amount
     Text(
-      text = ArabicNumberHelper.fmt(amount),
+      text = ArabicNumberHelper.fmt(entry.amount),
       fontWeight = FontWeight.Bold,
       fontSize = 15.sp,
       color = if (isIncome) colors.income else colors.ink
     )
 
     // Paid checkbox if isLoan
-    if (row.isLoan) {
+    if (entry.isLoan) {
       Spacer(modifier = Modifier.width(8.dp))
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clickable { onTogglePaid(row.id, month, !isPaid) }
+        modifier = Modifier.clickable { onTogglePaid(entry.id, !entry.isPaid) }
       ) {
         Checkbox(
-          checked = isPaid,
-          onCheckedChange = { onTogglePaid(row.id, month, it) },
+          checked = entry.isPaid,
+          onCheckedChange = { onTogglePaid(entry.id, it) },
           colors = CheckboxDefaults.colors(checkedColor = colors.income)
         )
         Text("Paid", fontSize = 12.5.sp, color = colors.muted)

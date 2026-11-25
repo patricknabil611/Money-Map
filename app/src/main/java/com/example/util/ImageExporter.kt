@@ -76,8 +76,8 @@ object ImageExporter {
       }
     }
 
-    val ins = allRows.filter { it.kind == "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
-    val outs = allRows.filter { it.kind != "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    val ins = RecordOrder.sort(allRows.filter { it.kind == "in" })
+    val outs = RecordOrder.sort(allRows.filter { it.kind != "in" })
 
     val sharedIns = ins.filter { config.selectedRowIds.contains(it.id) }
     val sharedOuts = outs.filter { config.selectedRowIds.contains(it.id) }
@@ -292,7 +292,36 @@ object ImageExporter {
             text = "$text…"
           }
 
-          if (cell.isLeft) {
+          val rowCreatedDate = if (line is ExportImageLine.RowLine && ci == 0) {
+            RecordOrder.formatCreatedDate(line.row.createdAt)
+          } else null
+
+          if (cell.isLeft && rowCreatedDate != null) {
+            paint.textAlign = Paint.Align.LEFT
+            paint.textSize = 13.5f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            paint.color = C_INK
+            var nameText = cell.text
+            if (paint.measureText(nameText) > maxW) {
+              while (nameText.length > 1 && paint.measureText("$nameText…") > maxW) {
+                nameText = nameText.substring(0, nameText.length - 1)
+              }
+              nameText = "$nameText…"
+            }
+            canvas.drawText(nameText, (cellX + 12).toFloat(), (y + 17).toFloat(), paint)
+
+            paint.textSize = 10.5f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            paint.color = C_MUTED
+            var dateText: String = rowCreatedDate
+            if (paint.measureText(dateText) > maxW) {
+              while (dateText.length > 1 && paint.measureText("$dateText…") > maxW) {
+                dateText = dateText.substring(0, dateText.length - 1)
+              }
+              dateText = "$dateText…"
+            }
+            canvas.drawText(dateText, (cellX + 12).toFloat(), (y + 32).toFloat(), paint)
+          } else if (cell.isLeft) {
             paint.textAlign = Paint.Align.LEFT
             canvas.drawText(text, (cellX + 12).toFloat(), (y + rowH / 2 + 5).toFloat(), paint)
           } else {

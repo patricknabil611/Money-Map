@@ -55,6 +55,7 @@ import com.example.data.model.PhotoReceipt
 import com.example.data.model.Sha2aItem
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
+import com.example.util.RecordOrder
 import java.io.File
 
 @Composable
@@ -70,10 +71,10 @@ fun Sha2aScreen(
   val context = LocalContext.current
 
   val inItems = remember(items) {
-    items.filter { it.side == "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(items.filter { it.side == "in" })
   }
   val outItems = remember(items) {
-    items.filter { it.side != "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(items.filter { it.side != "in" })
   }
 
   val totalIn = remember(inItems) { inItems.sumOf { it.amount } }
@@ -365,12 +366,14 @@ fun Sha2aRowItem(
   onClick: () -> Unit
 ) {
   val colors = LocalMoneyMapColors.current
+  val createdDate = remember(item.createdAt) { RecordOrder.formatCreatedDate(item.createdAt) }
 
   Row(
     modifier = Modifier
       .fillMaxWidth()
       .clickable(onClick = onClick)
-      .padding(horizontal = 14.dp, vertical = 10.dp),
+      .padding(horizontal = 14.dp, vertical = 10.dp)
+      .testTag("project_item_${item.id}"),
     verticalAlignment = Alignment.CenterVertically
   ) {
     Text(
@@ -380,15 +383,26 @@ fun Sha2aRowItem(
       modifier = Modifier.width(26.dp)
     )
 
-    Text(
-      text = item.name,
-      fontWeight = FontWeight.Medium,
-      fontSize = 14.sp,
-      color = colors.ink,
-      modifier = Modifier.weight(1f),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis
-    )
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = item.name,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        color = colors.ink,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+      if (createdDate != null) {
+        Text(
+          text = createdDate,
+          fontSize = 11.sp,
+          color = colors.muted,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.testTag("project_item_date_${item.id}")
+        )
+      }
+    }
 
     Text(
       text = ArabicNumberHelper.fmt(item.amount),

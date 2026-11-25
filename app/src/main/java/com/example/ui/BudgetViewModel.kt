@@ -13,6 +13,7 @@ import com.example.data.db.AppDatabase
 import com.example.data.drive.GoogleDriveSyncManager
 import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
+import com.example.data.model.MonthEntry
 import com.example.data.model.PhotoReceipt
 import com.example.data.model.Sha2aItem
 import com.example.data.repository.BudgetRepository
@@ -53,10 +54,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
   private val repository: BudgetRepository
 
   val budgetRows: StateFlow<List<BudgetRow>>
+  val monthEntries: StateFlow<List<MonthEntry>>
   val projects: StateFlow<List<com.example.data.model.ProjectEntity>>
   val sha2aItems: StateFlow<List<Sha2aItem>>
   val photoReceipts: StateFlow<List<PhotoReceipt>>
   val settings: StateFlow<AppSettings>
+
+  private val _showLegacyArrangeScreen = MutableStateFlow(false)
+  val showLegacyArrangeScreen = _showLegacyArrangeScreen.asStateFlow()
 
   private val _currentTab = MutableStateFlow(AppTab.HOME)
   val currentTab = _currentTab.asStateFlow()
@@ -76,6 +81,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   private val _isNewRow = MutableStateFlow(false)
   val isNewRow = _isNewRow.asStateFlow()
+
+  private val _editingMonthEntry = MutableStateFlow<MonthEntry?>(null)
+  val editingMonthEntry = _editingMonthEntry.asStateFlow()
+
+  private val _isNewMonthEntry = MutableStateFlow(false)
+  val isNewMonthEntry = _isNewMonthEntry.asStateFlow()
 
   private val _editingCell = MutableStateFlow<Pair<String, String>?>(null) // rowId, month
   val editingCell = _editingCell.asStateFlow()
@@ -118,6 +129,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       SharingStarted.Eagerly,
       emptyList()
     )
+    monthEntries = repository.monthEntries.stateIn(
+      viewModelScope,
+      SharingStarted.Eagerly,
+      emptyList()
+    )
     projects = repository.projects.stateIn(
       viewModelScope,
       SharingStarted.Eagerly,
@@ -141,6 +157,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     viewModelScope.launch {
       repository.checkAndSeedIfEmpty()
+      val needsArrange = repository.evaluateLegacyArrangeNeeded()
+      _showLegacyArrangeScreen.value = needsArrange
+      if (!needsArrange) {
+        repository.ensureMonthMaterialized(_selectedMonth.value)
+      }
       val user = _currentUser.value
       if (user != null) {
         onUserSignedIn(user)
@@ -156,6 +177,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     FirestoreRealtimeSyncManager.startObservingRemoteChanges(app) { payload ->
       viewModelScope.launch {
         repository.importFromJson(payload)
+        val needsArrange = repository.evaluateLegacyArrangeNeeded()
+        _showLegacyArrangeScreen.value = needsArrange
+        if (!needsArrange) {
+          repository.ensureMonthMaterialized(_selectedMonth.value)
+        }
       }
     }
 
@@ -199,6 +225,30 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
           }
         }
       }
+
+      val needsArrange = repository.evaluateLegacyArrangeNeeded()
+      _showLegacyArrangeScreen.value = needsArrange
+      if (!needsArrange) {
+        repository.ensureMonthMaterialized(_selectedMonth.value)
+      }
+    }
+  }
+
+  fun saveLegacyArrangement(
+    monthEntryOrders: Map<String, Int>,
+    budgetRowOrders: Map<String, Int>,
+    sha2aOrders: Map<String, Int>
+  ) {
+    viewModelScope.launch {
+      repository.saveLegacyArrangement(
+        monthEntryOrders = monthEntryOrders,
+        budgetRowOrders = budgetRowOrders,
+        sha2aOrders = sha2aOrders
+      )
+      _showLegacyArrangeScreen.value = false
+      repository.ensureMonthMaterialized(_selectedMonth.value)
+      persistCurrentBudget()
+      showToast("Saved your record order.")
     }
   }
 
@@ -298,6 +348,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       val st = settings.value.startMonth
       val startMonth = if (ScheduleEngine.mIdx(currentM) >= ScheduleEngine.mIdx(st)) currentM else st
 
+      val now = System.currentTimeMillis()
       val newRow = BudgetRow(
         id = "row-${UUID.randomUUID().toString().substring(0, 8)}",
         name = task.title,
@@ -312,10 +363,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         overridesJson = "{}",
         isLoan = isLoan,
         paidJson = "{}",
-        sortOrder = (budgetRows.value.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0) + 10
+        sortOrder = 0,
+        createdAt = now,
+        legacyOrder = null
       )
 
-      repository.saveRow(newRow)
+      repository.saveRow(newRow) { now }
       persistCurrentBudget()
 
       if (setReminder) {
@@ -374,6 +427,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   fun setSelectedMonth(m: String) {
     _selectedMonth.value = m
+    if (!_showLegacyArrangeScreen.value) {
+      viewModelScope.launch {
+        repository.ensureMonthMaterialized(m)
+      }
+    }
   }
 
   fun toggleLoanExpanded(rowId: String) {
@@ -388,8 +446,76 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     }
   }
 
+  fun toggleMonthEntryPaid(entryId: String, isPaid: Boolean) {
+    viewModelScope.launch {
+      repository.setMonthEntryPaid(entryId, isPaid)
+      persistCurrentBudget()
+    }
+  }
+
+  fun openAddMonthEntry(kind: String, month: String) {
+    _editingMonthEntry.value = MonthEntry(
+      id = "",
+      month = month,
+      sourceRowId = null,
+      name = "",
+      kind = kind,
+      amount = 0.0,
+      day = null,
+      isPaid = false,
+      isLoan = false,
+      payInfoText = if (kind == "in") "Monthly" else "Every month",
+      createdAt = null,
+      legacyOrder = null
+    )
+    _isNewMonthEntry.value = true
+  }
+
+  fun openEditMonthEntry(entryId: String) {
+    viewModelScope.launch {
+      val entry = repository.getMonthEntryById(entryId)
+      if (entry != null) {
+        _editingMonthEntry.value = entry
+        _isNewMonthEntry.value = false
+      }
+    }
+  }
+
+  fun closeMonthEntryEditor() {
+    _editingMonthEntry.value = null
+    _isNewMonthEntry.value = false
+  }
+
+  fun saveMonthEntry(entry: MonthEntry) {
+    viewModelScope.launch {
+      val now = System.currentTimeMillis()
+      val toSave = if (entry.id.isBlank()) {
+        entry.copy(
+          id = "me-${UUID.randomUUID().toString().substring(0, 8)}",
+          createdAt = now,
+          legacyOrder = null
+        )
+      } else {
+        entry
+      }
+      repository.saveMonthEntry(toSave) { now }
+      closeMonthEntryEditor()
+      persistCurrentBudget()
+      showToast("Saved ${toSave.name}")
+    }
+  }
+
+  fun deleteMonthEntry(id: String) {
+    viewModelScope.launch {
+      val entry = repository.getMonthEntryById(id)
+      repository.deleteMonthEntry(id)
+      closeMonthEntryEditor()
+      persistCurrentBudget()
+      showToast("Deleted ${entry?.name ?: "item"}")
+    }
+  }
+
   fun openAddRow(kind: String, isLoan: Boolean = false) {
-    val maxOrder = budgetRows.value.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0
     _editingRow.value = BudgetRow(
       id = "",
       name = "",
@@ -404,7 +530,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       overridesJson = "{}",
       isLoan = isLoan,
       paidJson = "{}",
-      sortOrder = maxOrder + 10
+      sortOrder = 0,
+      createdAt = null,
+      legacyOrder = null
     )
     _isNewRow.value = true
   }
@@ -426,12 +554,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   fun saveRow(row: BudgetRow) {
     viewModelScope.launch {
+      val now = System.currentTimeMillis()
       val toSave = if (row.id.isBlank()) {
-        row.copy(id = "row-${UUID.randomUUID().toString().substring(0, 8)}")
+        row.copy(
+          id = "row-${UUID.randomUUID().toString().substring(0, 8)}",
+          createdAt = now,
+          legacyOrder = null
+        )
       } else {
         row
       }
-      repository.saveRow(toSave)
+      repository.saveRow(toSave) { now }
       closeRowEditor()
       persistCurrentBudget()
       showToast("Saved ${toSave.name}")
@@ -445,15 +578,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
       closeRowEditor()
       persistCurrentBudget()
       showToast("Deleted ${row?.name ?: "row"}")
-    }
-  }
-
-  fun moveRow(id: String, direction: Int) {
-    viewModelScope.launch {
-      val success = repository.moveRow(id, direction)
-      if (success) {
-        persistCurrentBudget()
-      }
     }
   }
 
@@ -509,16 +633,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
   fun saveSha2a(item: Sha2aItem) {
     viewModelScope.launch {
+      val now = System.currentTimeMillis()
       val toSave = if (item.id.isBlank()) {
-        val maxOrder = sha2aItems.value.filter { it.side == item.side }.maxOfOrNull { it.sortOrder } ?: 0
         item.copy(
           id = "sha2a-${UUID.randomUUID().toString().substring(0, 8)}",
-          sortOrder = maxOrder + 1
+          sortOrder = 0,
+          createdAt = now,
+          legacyOrder = null
         )
       } else {
         item
       }
-      repository.saveSha2aItem(toSave)
+      repository.saveSha2aItem(toSave) { now }
       closeSha2aEditor()
       persistCurrentBudget()
       showToast("Saved ${toSave.name}")
@@ -628,6 +754,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     viewModelScope.launch {
       val res = repository.importFromJson(content)
       if (res.isSuccess) {
+        val needsArrange = repository.evaluateLegacyArrangeNeeded()
+        _showLegacyArrangeScreen.value = needsArrange
+        if (!needsArrange) {
+          repository.ensureMonthMaterialized(_selectedMonth.value)
+        }
         persistCurrentBudget()
         showToast("Backup imported successfully.")
         onComplete(true)

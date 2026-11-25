@@ -56,6 +56,7 @@ import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
 import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
+import com.example.util.RecordOrder
 import com.example.util.ScheduleEngine
 import kotlinx.coroutines.launch
 
@@ -97,10 +98,10 @@ fun HomeScreen(
   }
 
   val inRows = remember(rows) {
-    rows.filter { it.kind == "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(rows.filter { it.kind == "in" })
   }
   val outRows = remember(rows) {
-    rows.filter { it.kind != "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(rows.filter { it.kind != "in" })
   }
 
   val currentM = remember { ScheduleEngine.currentMonth() }
@@ -281,7 +282,9 @@ fun HomeScreen(
         .background(colors.surface)
     ) {
       LazyColumn(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+          .fillMaxSize()
+          .testTag("all_tab_grid_list")
       ) {
         // Row 1: Income Totals
         item {
@@ -619,10 +622,11 @@ fun UnifiedGridRow(
 
       Spacer(modifier = Modifier.width(6.dp))
 
+      val createdDate = remember(row.createdAt) { RecordOrder.formatCreatedDate(row.createdAt) }
       Column(
         modifier = Modifier
           .weight(1f)
-          .padding(vertical = 4.dp),
+          .padding(vertical = 3.dp),
         verticalArrangement = Arrangement.Center
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -647,14 +651,25 @@ fun UnifiedGridRow(
             }
           }
         }
+        if (createdDate != null) {
+          Text(
+            text = createdDate,
+            fontSize = 10.sp,
+            lineHeight = 12.sp,
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("all_row_date_${row.id}")
+          )
+        }
         if (subText.isNotBlank()) {
           Text(
             text = subText,
             fontSize = 10.5.sp,
-            lineHeight = 13.5.sp,
+            lineHeight = 13.sp,
             color = cellSubColor,
             fontWeight = FontWeight.Medium,
-            maxLines = 2,
+            maxLines = if (createdDate != null) 1 else 2,
             overflow = TextOverflow.Ellipsis
           )
         }

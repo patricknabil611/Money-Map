@@ -26,8 +26,6 @@ import com.example.ui.components.AppIconButton
 import com.example.ui.theme.AppShapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -77,9 +75,7 @@ fun RowEditorSheet(
   rangeEnd: String,
   onDismiss: () -> Unit,
   onSave: (BudgetRow) -> Unit,
-  onDelete: (String) -> Unit,
-  onMoveUp: (String) -> Unit,
-  onMoveDown: (String) -> Unit
+  onDelete: (String) -> Unit
 ) {
   val colors = LocalMoneyMapColors.current
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -435,46 +431,6 @@ fun RowEditorSheet(
       }
 
       Spacer(modifier = Modifier.height(16.dp))
-
-      // Reordering row (if editing existing row)
-      if (!isNew) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(AppShapes.Medium)
-            .background(colors.surface2.copy(alpha = 0.6f))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Text(
-            text = "Reorder position in list",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = colors.muted,
-            modifier = Modifier.weight(1f)
-          )
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            AppSecondaryButton(
-              onClick = { onMoveUp(row.id) },
-              text = "Up",
-              icon = Icons.Default.ArrowUpward,
-              modifier = Modifier.testTag("move_up_btn")
-            )
-
-            AppSecondaryButton(
-              onClick = { onMoveDown(row.id) },
-              text = "Down",
-              icon = Icons.Default.ArrowDownward,
-              modifier = Modifier.testTag("move_down_btn")
-            )
-          }
-        }
-        Spacer(modifier = Modifier.height(14.dp))
-      }
 
       // Enhanced Action buttons: "Save changes" and "Delete"
       if (isNew) {

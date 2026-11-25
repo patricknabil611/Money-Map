@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.example.data.model.AppSettings
 import com.example.data.model.BudgetRow
+import com.example.data.model.MonthEntry
 import com.example.data.model.PhotoReceipt
 import com.example.data.model.Sha2aItem
 import kotlinx.coroutines.flow.Flow
@@ -16,8 +17,11 @@ import kotlinx.coroutines.flow.Flow
 interface BudgetDao {
 
   // --- Budget Rows ---
-  @Query("SELECT * FROM budget_rows ORDER BY sortOrder ASC, name ASC")
+  @Query("SELECT * FROM budget_rows ORDER BY CASE WHEN createdAt IS NULL THEN 0 ELSE 1 END ASC, legacyOrder ASC, createdAt ASC, id ASC")
   fun getAllBudgetRows(): Flow<List<BudgetRow>>
+
+  @Query("SELECT * FROM budget_rows")
+  suspend fun getAllBudgetRowsSync(): List<BudgetRow>
 
   @Query("SELECT * FROM budget_rows WHERE id = :id LIMIT 1")
   suspend fun getBudgetRowById(id: String): BudgetRow?
@@ -34,11 +38,45 @@ interface BudgetDao {
   @Update
   suspend fun updateBudgetRows(rows: List<BudgetRow>)
 
+  @Query("UPDATE budget_rows SET legacyOrder = :legacyOrder WHERE id = :id")
+  suspend fun updateBudgetRowLegacyOrder(id: String, legacyOrder: Int)
+
   @Query("DELETE FROM budget_rows WHERE id = :id")
   suspend fun deleteBudgetRow(id: String)
 
   @Query("DELETE FROM budget_rows")
   suspend fun clearBudgetRows()
+
+  // --- Month Entries (Independent per-month copies) ---
+  @Query("SELECT * FROM month_entries ORDER BY CASE WHEN createdAt IS NULL THEN 0 ELSE 1 END ASC, legacyOrder ASC, createdAt ASC, id ASC")
+  fun getAllMonthEntries(): Flow<List<MonthEntry>>
+
+  @Query("SELECT * FROM month_entries")
+  suspend fun getAllMonthEntriesSync(): List<MonthEntry>
+
+  @Query("SELECT * FROM month_entries WHERE month = :month")
+  suspend fun getMonthEntriesForMonthSync(month: String): List<MonthEntry>
+
+  @Query("SELECT * FROM month_entries WHERE id = :id LIMIT 1")
+  suspend fun getMonthEntryById(id: String): MonthEntry?
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertMonthEntry(entry: MonthEntry)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertMonthEntries(entries: List<MonthEntry>)
+
+  @Update
+  suspend fun updateMonthEntry(entry: MonthEntry)
+
+  @Query("UPDATE month_entries SET legacyOrder = :legacyOrder WHERE id = :id")
+  suspend fun updateMonthEntryLegacyOrder(id: String, legacyOrder: Int)
+
+  @Query("DELETE FROM month_entries WHERE id = :id")
+  suspend fun deleteMonthEntry(id: String)
+
+  @Query("DELETE FROM month_entries")
+  suspend fun clearMonthEntries()
 
   // --- Projects ---
   @Query("SELECT * FROM projects ORDER BY sortOrder ASC, name ASC")
@@ -57,8 +95,11 @@ interface BudgetDao {
   suspend fun deleteProject(id: String)
 
   // --- Sha2a Items ---
-  @Query("SELECT * FROM sha2a_items ORDER BY sortOrder ASC, name ASC")
+  @Query("SELECT * FROM sha2a_items ORDER BY CASE WHEN createdAt IS NULL THEN 0 ELSE 1 END ASC, legacyOrder ASC, createdAt ASC, id ASC")
   fun getAllSha2aItems(): Flow<List<Sha2aItem>>
+
+  @Query("SELECT * FROM sha2a_items")
+  suspend fun getAllSha2aItemsSync(): List<Sha2aItem>
 
   @Query("SELECT * FROM sha2a_items WHERE id = :id LIMIT 1")
   suspend fun getSha2aItemById(id: String): Sha2aItem?
@@ -71,6 +112,9 @@ interface BudgetDao {
 
   @Update
   suspend fun updateSha2aItem(item: Sha2aItem)
+
+  @Query("UPDATE sha2a_items SET legacyOrder = :legacyOrder WHERE id = :id")
+  suspend fun updateSha2aItemLegacyOrder(id: String, legacyOrder: Int)
 
   @Query("DELETE FROM sha2a_items WHERE id = :id")
   suspend fun deleteSha2aItem(id: String)
@@ -111,17 +155,50 @@ interface BudgetDao {
   suspend fun updateSettings(settings: AppSettings)
 
   @Transaction
+  suspend fun saveLegacyArrangement(
+    monthEntryOrders: Map<String, Int>,
+    budgetRowOrders: Map<String, Int>,
+    sha2aOrders: Map<String, Int>
+  ) {
+    monthEntryOrders.forEach { (id, order) ->
+      updateMonthEntryLegacyOrder(id, order)
+    }
+    budgetRowOrders.forEach { (id, order) ->
+      updateBudgetRowLegacyOrder(id, order)
+    }
+    sha2aOrders.forEach { (id, order) ->
+      updateSha2aItemLegacyOrder(id, order)
+    }
+    val current = getSettingsSync() ?: AppSettings()
+    insertSettings(current.copy(legacyArrangeDone = true))
+  }
+
+  @Transaction
+  suspend fun insertMonthEntriesAndMarkMaterialized(
+    entries: List<MonthEntry>,
+    updatedSettings: AppSettings
+  ) {
+    if (entries.isNotEmpty()) {
+      insertMonthEntries(entries)
+    }
+    insertSettings(updatedSettings)
+  }
+
+  @Transaction
   suspend fun replaceAllData(
     settings: AppSettings,
     rows: List<BudgetRow>,
+    monthEntries: List<MonthEntry>,
     sha2a: List<Sha2aItem>,
     photos: List<PhotoReceipt>
   ) {
     clearBudgetRows()
+    clearMonthEntries()
     clearSha2aItems()
     clearPhotoReceipts()
     insertSettings(settings)
     insertBudgetRows(rows)
+    insertMonthEntries(monthEntries)
     insertSha2aItems(sha2a)
     photos.forEach { insertPhotoReceipt(it) }
   }

@@ -49,6 +49,7 @@ import com.example.ui.theme.LocalMoneyMapColors
 import com.example.util.ArabicNumberHelper
 import com.example.util.ExportConfig
 import com.example.util.ImageExporter
+import com.example.util.RecordOrder
 import com.example.util.ScheduleEngine
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,8 +72,8 @@ fun ExportMariamSheet(
   var expChecked by remember { mutableStateOf(true) }
   var totalsAll by remember { mutableStateOf(true) }
 
-  val inRows = remember(allRows) { allRows.filter { it.kind == "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name })) }
-  val outRows = remember(allRows) { allRows.filter { it.kind != "in" }.sortedWith(compareBy({ it.sortOrder }, { it.name })) }
+  val inRows = remember(allRows) { RecordOrder.sort(allRows.filter { it.kind == "in" }) }
+  val outRows = remember(allRows) { RecordOrder.sort(allRows.filter { it.kind != "in" }) }
 
   var selectedRows by remember(allRows) { mutableStateOf(allRows.map { it.id }.toSet()) }
 
@@ -282,14 +283,29 @@ fun ExportMariamSheet(
               },
               colors = CheckboxDefaults.colors(checkedColor = colors.income)
             )
-            Text(r.name, color = colors.ink, fontSize = 14.sp)
-            if (r.day != null) {
-              Text(
-                " on the ${ArabicNumberHelper.ord(r.day)}",
-                color = colors.muted,
-                fontSize = 12.5.sp,
-                modifier = Modifier.padding(start = 4.dp)
-              )
+            val createdDate = remember(r.createdAt) { RecordOrder.formatCreatedDate(r.createdAt) }
+            Column(modifier = Modifier.weight(1f)) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(r.name, color = colors.ink, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (r.day != null) {
+                  Text(
+                    " on the ${ArabicNumberHelper.ord(r.day)}",
+                    color = colors.muted,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier.padding(start = 4.dp)
+                  )
+                }
+              }
+              if (createdDate != null) {
+                Text(
+                  text = createdDate,
+                  color = colors.muted,
+                  fontSize = 11.sp,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier.testTag("export_in_date_${r.id}")
+                )
+              }
             }
           }
         }
@@ -356,14 +372,29 @@ fun ExportMariamSheet(
               },
               colors = CheckboxDefaults.colors(checkedColor = colors.expense)
             )
-            Text(r.name, color = colors.ink, fontSize = 14.sp)
-            if (r.day != null) {
-              Text(
-                " on the ${ArabicNumberHelper.ord(r.day)}",
-                color = colors.muted,
-                fontSize = 12.5.sp,
-                modifier = Modifier.padding(start = 4.dp)
-              )
+            val createdDate = remember(r.createdAt) { RecordOrder.formatCreatedDate(r.createdAt) }
+            Column(modifier = Modifier.weight(1f)) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(r.name, color = colors.ink, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (r.day != null) {
+                  Text(
+                    " on the ${ArabicNumberHelper.ord(r.day)}",
+                    color = colors.muted,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier.padding(start = 4.dp)
+                  )
+                }
+              }
+              if (createdDate != null) {
+                Text(
+                  text = createdDate,
+                  color = colors.muted,
+                  fontSize = 11.sp,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier.testTag("export_out_date_${r.id}")
+                )
+              }
             }
           }
         }

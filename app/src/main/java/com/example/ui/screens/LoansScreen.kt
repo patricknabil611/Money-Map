@@ -50,7 +50,9 @@ import com.example.ui.components.AppPrimaryButton
 import com.example.ui.components.AppSecondaryButton
 import com.example.ui.theme.AppShapes
 import com.example.ui.theme.LocalMoneyMapColors
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.util.ArabicNumberHelper
+import com.example.util.RecordOrder
 import com.example.util.ScheduleEngine
 
 @Composable
@@ -68,7 +70,7 @@ fun LoansScreen(
   val rangeEnd = settings.endMonth
 
   val loanRows = remember(rows) {
-    rows.filter { it.isLoan }.sortedWith(compareBy({ it.sortOrder }, { it.name }))
+    RecordOrder.sort(rows.filter { it.isLoan })
   }
 
   val loanInfos = remember(loanRows, rangeStart, rangeEnd) {
@@ -195,6 +197,20 @@ fun LoansScreen(
                   fontWeight = FontWeight.Bold,
                   fontSize = 14.5.sp,
                   color = colors.ink
+                )
+              }
+
+              val createdDate = remember(row.createdAt) { RecordOrder.formatCreatedDate(row.createdAt) }
+              if (createdDate != null) {
+                Text(
+                  text = createdDate,
+                  color = colors.muted,
+                  fontSize = 11.sp,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier
+                    .padding(start = 22.dp, top = 1.dp)
+                    .testTag("loan_date_${row.id}")
                 )
               }
 

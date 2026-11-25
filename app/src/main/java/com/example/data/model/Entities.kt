@@ -2,6 +2,7 @@ package com.example.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.example.util.OrderableRecord
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -12,7 +13,7 @@ data class Step(
 
 @Entity(tableName = "budget_rows")
 data class BudgetRow(
-  @PrimaryKey val id: String,
+  @PrimaryKey override val id: String,
   val name: String,
   val kind: String, // "in" or "out"
   val amount: Double,
@@ -25,8 +26,10 @@ data class BudgetRow(
   val overridesJson: String = "{}",
   val isLoan: Boolean = false,
   val paidJson: String = "{}",
-  val sortOrder: Int = 0
-) {
+  val sortOrder: Int = 0,
+  override val createdAt: Long? = null,
+  override val legacyOrder: Int? = null
+) : OrderableRecord {
   fun getSteps(): List<Step> {
     if (stepsJson.isBlank()) return emptyList()
     val list = mutableListOf<Step>()
@@ -99,6 +102,27 @@ data class BudgetRow(
   }
 }
 
+/**
+ * Independent per-month income/expense record displayed in the Month tab.
+ * Monthly copies across different months are strictly independent records
+ * with their own id, createdAt, and legacyOrder.
+ */
+@Entity(tableName = "month_entries")
+data class MonthEntry(
+  @PrimaryKey override val id: String,
+  val month: String, // "YYYY-MM"
+  val sourceRowId: String? = null,
+  val name: String,
+  val kind: String, // "in" or "out"
+  val amount: Double,
+  val day: Int? = null,
+  val isPaid: Boolean = false,
+  val isLoan: Boolean = false,
+  val payInfoText: String = "",
+  override val createdAt: Long? = null,
+  override val legacyOrder: Int? = null
+) : OrderableRecord
+
 @Entity(tableName = "projects")
 data class ProjectEntity(
   @PrimaryKey val id: String,
@@ -109,13 +133,15 @@ data class ProjectEntity(
 
 @Entity(tableName = "sha2a_items")
 data class Sha2aItem(
-  @PrimaryKey val id: String,
+  @PrimaryKey override val id: String,
   val name: String,
   val amount: Double,
   val side: String, // "in" or "out"
   val sortOrder: Int = 0,
-  val projectId: String = "sha2a"
-)
+  val projectId: String = "sha2a",
+  override val createdAt: Long? = null,
+  override val legacyOrder: Int? = null
+) : OrderableRecord
 
 @Entity(tableName = "photo_receipts")
 data class PhotoReceipt(
@@ -133,5 +159,28 @@ data class AppSettings(
   val endMonth: String = "2027-12",
   val themeMode: String = "system", // "system", "light", "dark"
   val driveAccount: String = "",
-  val lastDriveBackup: Long = 0L
-)
+  val lastDriveBackup: Long = 0L,
+  val legacyArrangeDone: Boolean = false,
+  val materializedMonthsJson: String = "[]"
+) {
+  fun getMaterializedMonths(): Set<String> {
+    if (materializedMonthsJson.isBlank()) return emptySet()
+    val set = mutableSetOf<String>()
+    try {
+      val arr = JSONArray(materializedMonthsJson)
+      for (i in 0 until arr.length()) {
+        val m = arr.optString(i, "")
+        if (m.isNotBlank()) set.add(m)
+      }
+    } catch (_: Exception) {}
+    return set
+  }
+
+  companion object {
+    fun materializedMonthsToJson(months: Collection<String>): String {
+      val arr = JSONArray()
+      months.distinct().sorted().forEach { arr.put(it) }
+      return arr.toString()
+    }
+  }
+}

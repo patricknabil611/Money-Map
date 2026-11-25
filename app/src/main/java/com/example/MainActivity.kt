@@ -84,11 +84,13 @@ import com.example.ui.AppTab
 import com.example.ui.BudgetViewModel
 import com.example.ui.components.CellEditorSheet
 import com.example.ui.components.ExportMariamSheet
+import com.example.ui.components.MonthEntryEditorSheet
 import com.example.ui.components.PhotoLightboxSheet
 import com.example.ui.components.RowEditorSheet
 import com.example.ui.components.SettingsSheet
 import com.example.ui.components.Sha2aEditorSheet
 import com.example.security.BiometricAuthManager
+import com.example.ui.screens.ArrangeLegacyRecordsScreen
 import com.example.ui.screens.BiometricLockScreen
 import com.example.ui.screens.HomeOverviewScreen
 import com.example.ui.screens.HomeScreen
@@ -373,6 +375,7 @@ fun MoneyMapApp(
 
   val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
   val budgetRows by viewModel.budgetRows.collectAsStateWithLifecycle()
+  val monthEntries by viewModel.monthEntries.collectAsStateWithLifecycle()
   val projects by viewModel.projects.collectAsStateWithLifecycle()
   val selectedProjectId by viewModel.selectedProjectId.collectAsStateWithLifecycle()
   val sha2aItems by viewModel.sha2aItems.collectAsStateWithLifecycle()
@@ -381,6 +384,20 @@ fun MoneyMapApp(
   val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
   val openLoanIds by viewModel.openLoanIds.collectAsStateWithLifecycle()
   val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+  val showLegacyArrangeScreen by viewModel.showLegacyArrangeScreen.collectAsStateWithLifecycle()
+
+  if (showLegacyArrangeScreen) {
+    ArrangeLegacyRecordsScreen(
+      monthEntries = monthEntries,
+      budgetRows = budgetRows,
+      projects = projects,
+      sha2aItems = sha2aItems,
+      onSave = { monthOrders, budgetOrders, sha2aOrders ->
+        viewModel.saveLegacyArrangement(monthOrders, budgetOrders, sha2aOrders)
+      }
+    )
+    return
+  }
 
   val userFirstName = currentUser?.displayName?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
     ?: currentUser?.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
@@ -396,6 +413,8 @@ fun MoneyMapApp(
 
   val editingRow by viewModel.editingRow.collectAsStateWithLifecycle()
   val isNewRow by viewModel.isNewRow.collectAsStateWithLifecycle()
+  val editingMonthEntry by viewModel.editingMonthEntry.collectAsStateWithLifecycle()
+  val isNewMonthEntry by viewModel.isNewMonthEntry.collectAsStateWithLifecycle()
   val editingCell by viewModel.editingCell.collectAsStateWithLifecycle()
   val editingSha2a by viewModel.editingSha2a.collectAsStateWithLifecycle()
   val viewingPhoto by viewModel.viewingPhoto.collectAsStateWithLifecycle()
@@ -663,7 +682,7 @@ fun MoneyMapApp(
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-          MainContentTab(currentTab, viewModel, budgetRows, projects, selectedProjectId, sha2aItems, photoReceipts, settings, selectedMonth, openLoanIds)
+          MainContentTab(currentTab, viewModel, budgetRows, monthEntries, projects, selectedProjectId, sha2aItems, photoReceipts, settings, selectedMonth, openLoanIds)
 
           // Toast banner
           androidx.compose.animation.AnimatedVisibility(
@@ -929,7 +948,7 @@ fun MoneyMapApp(
           .fillMaxSize()
           .padding(paddingValues)
       ) {
-        MainContentTab(currentTab, viewModel, budgetRows, projects, selectedProjectId, sha2aItems, photoReceipts, settings, selectedMonth, openLoanIds)
+        MainContentTab(currentTab, viewModel, budgetRows, monthEntries, projects, selectedProjectId, sha2aItems, photoReceipts, settings, selectedMonth, openLoanIds)
 
         // Toast notification banner
         androidx.compose.animation.AnimatedVisibility(
@@ -969,9 +988,17 @@ fun MoneyMapApp(
       rangeEnd = settings.endMonth,
       onDismiss = { viewModel.closeRowEditor() },
       onSave = { viewModel.saveRow(it) },
-      onDelete = { viewModel.deleteRow(it) },
-      onMoveUp = { viewModel.moveRow(it, -1) },
-      onMoveDown = { viewModel.moveRow(it, 1) }
+      onDelete = { viewModel.deleteRow(it) }
+    )
+  }
+
+  editingMonthEntry?.let { entry ->
+    MonthEntryEditorSheet(
+      entry = entry,
+      isNew = isNewMonthEntry,
+      onDismiss = { viewModel.closeMonthEntryEditor() },
+      onSave = { viewModel.saveMonthEntry(it) },
+      onDelete = { viewModel.deleteMonthEntry(it) }
     )
   }
 
@@ -1091,6 +1118,7 @@ fun MainContentTab(
   currentTab: AppTab,
   viewModel: BudgetViewModel,
   budgetRows: List<com.example.data.model.BudgetRow>,
+  monthEntries: List<com.example.data.model.MonthEntry>,
   projects: List<com.example.data.model.ProjectEntity>,
   selectedProjectId: String?,
   sha2aItems: List<com.example.data.model.Sha2aItem>,
@@ -1127,11 +1155,13 @@ fun MainContentTab(
     AppTab.MONTH -> {
       MonthScreen(
         rows = budgetRows,
+        monthEntries = monthEntries,
         settings = settings,
         selectedMonth = selectedMonth,
         onMonthChange = { viewModel.setSelectedMonth(it) },
-        onItemClick = { rowId, month -> viewModel.openCell(rowId, month) },
-        onTogglePaid = { rowId, month, isPaid -> viewModel.togglePaid(rowId, month, isPaid) }
+        onEntryClick = { entryId -> viewModel.openEditMonthEntry(entryId) },
+        onAddEntry = { kind -> viewModel.openAddMonthEntry(kind, selectedMonth) },
+        onToggleEntryPaid = { entryId, isPaid -> viewModel.toggleMonthEntryPaid(entryId, isPaid) }
       )
     }
     AppTab.PROJECTS -> {

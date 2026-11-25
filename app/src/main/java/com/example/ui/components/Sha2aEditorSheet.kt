@@ -159,12 +159,14 @@ fun Sha2aEditorSheet(
             }
             val out = item?.copy(name = name.trim(), amount = a, side = side)
               ?: Sha2aItem(
-                id = "sha2a-${System.currentTimeMillis()}",
+                id = "",
                 name = name.trim(),
                 amount = a,
                 side = side,
-                sortOrder = (System.currentTimeMillis() % 100000).toInt(),
-                projectId = projectId
+                sortOrder = 0,
+                projectId = projectId,
+                createdAt = null,
+                legacyOrder = null
               )
             onSave(out)
           },
@@ -210,12 +212,14 @@ fun Sha2aEditorSheet(
               }
               val out = item?.copy(name = name.trim(), amount = a, side = side)
                 ?: Sha2aItem(
-                  id = "sha2a-${System.currentTimeMillis()}",
+                  id = "",
                   name = name.trim(),
                   amount = a,
                   side = side,
-                  sortOrder = (System.currentTimeMillis() % 100000).toInt(),
-                  projectId = projectId
+                  sortOrder = 0,
+                  projectId = projectId,
+                  createdAt = null,
+                  legacyOrder = null
                 )
               onSave(out)
             },
